@@ -1,0 +1,12 @@
+services:
+  collection52:
+    build: .
+    ports: ["${PORT:-3001}:3001"]
+    environment:
+      PORT: 3001
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3001}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3001}
+      LOBBY_IDLE_MINUTES: ${LOBBY_IDLE_MINUTES:-30}
+      LOBBY_WARNING_MINUTES: ${LOBBY_WARNING_MINUTES:-5}
+    restart: unless-stopped
+    init: true

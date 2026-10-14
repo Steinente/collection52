@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="background" cx="32%" cy="22%" r="88%">
+      <stop stop-color="#12352f"/>
+      <stop offset="1" stop-color="#020605"/>
+    </radialGradient>
+    <linearGradient id="card" x1="150" y1="82" x2="370" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#13231f"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-30%" width="190%" height="200%">
+      <feDropShadow dx="18" dy="22" stdDeviation="18" flood-color="#000" flood-opacity=".55"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#background)"/>
+  <circle cx="118" cy="104" r="110" fill="#65dfbc" opacity=".08"/>
+  <g transform="rotate(-5 256 256)" filter="url(#shadow)">
+    <rect x="146" y="78" width="220" height="356" rx="42" fill="url(#card)" stroke="#65dfbc" stroke-width="16"/>
+    <path d="M177 132h42M177 132v42M335 380h-42M335 380v-42" fill="none" stroke="#65dfbc" stroke-width="12" stroke-linecap="round" opacity=".58"/>
+    <text x="256" y="298" fill="#65dfbc" font-family="Arial,Helvetica,sans-serif" font-size="112" font-weight="900" text-anchor="middle">52</text>
+  </g>
+</svg>
