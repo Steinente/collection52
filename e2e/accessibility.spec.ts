@@ -24,6 +24,30 @@ test('home is keyboard-ready and has no detectable WCAG A/AA violations', async 
   await expect(page.locator('html')).toHaveAttribute('data-accent', 'amber'); expect(await page.evaluate(() => JSON.parse(localStorage.getItem('c52:prefs') ?? '{}').accent)).toBe('amber'); await settings.getByRole('button', { name: /Dismiss|Schließen/ }).click();
 });
 
+test('site notice and privacy policy are available in both languages', async ({ page }) => {
+  await page.goto('/'); await page.evaluate(() => localStorage.setItem('c52:language', 'de'));
+  await page.goto('/impressum');
+  await expect(page.getByRole('heading', { level: 1, name: 'Impressum' })).toBeVisible();
+  await expect(page.getByText('Kaiser-Otto-Ring 6')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'collection52@steinente.de' })).toHaveAttribute('href', 'mailto:collection52@steinente.de');
+  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', '/datenschutz');
+
+  await page.goto('/datenschutz');
+  await expect(page.getByRole('heading', { level: 1, name: 'Datenschutzerklärung' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '1. Datenschutz auf einen Blick' })).toBeVisible();
+  await expect(page.getByText('Kommunikation via WhatsApp', { exact: true })).toBeVisible();
+  await expect(page.getByText(/zuständigen Aufsichtsbehörde/).first()).toBeVisible();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(results.violations).toEqual([]);
+
+  await page.evaluate(() => localStorage.setItem('c52:language', 'en'));
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy Policy' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '1. An overview of data protection' })).toBeVisible();
+  await page.goto('/impressum');
+  await expect(page.getByRole('heading', { level: 1, name: 'Site Notice' })).toBeVisible();
+});
+
 test('two browser contexts can create, join, and start Durak', async ({ browser }) => {
   const hostContext = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] }); const guestContext = await browser.newContext();
   await hostContext.addInitScript(() => { window.speechSynthesis.cancel = () => sessionStorage.setItem('c52:speech-cancelled-test', 'true'); window.speechSynthesis.speak = (utterance) => { const spoken = JSON.parse(sessionStorage.getItem('c52:spoken-test') ?? '[]') as string[]; spoken.push(utterance.text); sessionStorage.setItem('c52:spoken-test', JSON.stringify(spoken)); sessionStorage.setItem('c52:last-spoken-test', utterance.text); }; });
