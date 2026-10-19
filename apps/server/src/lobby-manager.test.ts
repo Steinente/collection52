@@ -60,4 +60,16 @@ describe('LobbyManager', () => {
     expect(hostView.players.find((player) => player.id === joined.player.id)?.hand).toHaveLength(0); expect(hostView.players.find((player) => player.id === joined.player.id)?.handCount).toBe(5);
     manager.close(made.lobby, 'test_finished'); manager.stop();
   });
+  it('records drawn cards only in the drawing player private event stream', async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create('Anna', { gameId: 'mau-mau', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
+    const joined = await manager.join(made.lobby, 'Ben', undefined, 's2'); manager.start(made.lobby, made.player.id);
+    const currentId = (made.lobby.game as { currentPlayerId: string }).currentPlayerId; const otherId = currentId === made.player.id ? joined.player.id : made.player.id;
+    manager.action(made.lobby, currentId, { type:'mau-mau:draw' });
+    const privateDraw = [...made.lobby.events].reverse().find((event) => event.type === 'game.cards.drawn');
+    expect(privateDraw).toMatchObject({ visibility:'private', recipientId:currentId, actorId:currentId }); expect(privateDraw?.data.cardIds).toHaveLength(1);
+    expect(manager.view(made.lobby, currentId).events.some((event) => event.id === privateDraw?.id)).toBe(true);
+    expect(manager.view(made.lobby, otherId).events.some((event) => event.id === privateDraw?.id)).toBe(false);
+    manager.close(made.lobby, 'test_finished'); manager.stop();
+  });
 });

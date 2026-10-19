@@ -1,13 +1,13 @@
 import { createHash, randomBytes, randomInt, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { applyDurakAction, applyKnackAction, applyMauMauAction, createDurakGame, createKnackGame, createMauMauGame, defaultMauMauRules, knackPlayerView, mauMauPlayerView, playerView as durakPlayerView, withdrawDurakPlayer, withdrawKnackPlayer, type DurakState, type GameAction, type GameId, type KnackState, type LobbySummary, type MauMauRules, type MauMauState, type PublicLobby, type StructuredEvent } from '@collection52/shared';
+import { applyDurakAction, applyKnackAction, applyMauMauAction, applyRommeAction, createDurakGame, createKnackGame, createMauMauGame, createRommeGame, defaultMauMauRules, defaultRommeRules, knackPlayerView, mauMauPlayerView, rommePlayerView, playerView as durakPlayerView, withdrawDurakPlayer, withdrawKnackPlayer, withdrawRommePlayer, type DurakState, type GameAction, type GameId, type KnackState, type LobbySummary, type MauMauRules, type MauMauState, type PublicLobby, type RommeRules, type RommeState, type StructuredEvent } from '@collection52/shared';
 
 const scrypt = promisify(scryptCallback);
 export type LobbyPlayer = { id: string; name: string; tokenHash: string; connected: boolean; socketId?: string; joinedAt: number; isHost: boolean };
 export type Lobby = {
   id: string; code: string; gameId: GameId; status: 'waiting' | 'playing'; visibility: 'public' | 'private'; maxPlayers: number; deckSize: 32 | 36 | 52;
-  mauMauRules: MauMauRules;
-  passwordHash?: string; passwordSalt?: string; hostId: string; players: LobbyPlayer[]; game?: DurakState | KnackState | MauMauState; gameNumber: number;
+  mauMauRules: MauMauRules; rommeRules: RommeRules;
+  passwordHash?: string; passwordSalt?: string; hostId: string; players: LobbyPlayer[]; game?: DurakState | KnackState | MauMauState | RommeState; gameNumber: number;
   activityAt: number; warningSent: boolean; sequence: number; events: StructuredEvent[]; closed: boolean;
 };
 
@@ -23,16 +23,16 @@ export class LobbyManager {
   }
   stop() { if (this.cleanupTimer) clearInterval(this.cleanupTimer); }
   private token() { return randomBytes(32).toString('base64url'); }
-  private event(lobby: Lobby, type: string, actorId?: string, data: StructuredEvent['data'] = {}): StructuredEvent {
-    const event: StructuredEvent = { id: randomUUID(), sequence: ++lobby.sequence, timestamp: Date.now(), type, ...(actorId ? { actorId } : {}), data, visibility: 'public' };
+  private event(lobby: Lobby, type: string, actorId?: string, data: StructuredEvent['data'] = {}, visibility: StructuredEvent['visibility'] = 'public', recipientId?: string): StructuredEvent {
+    const event: StructuredEvent = { id: randomUUID(), sequence: ++lobby.sequence, timestamp: Date.now(), type, ...(actorId ? { actorId } : {}), ...(recipientId ? { recipientId } : {}), data, visibility };
     lobby.events.push(event); if (lobby.events.length > 200) lobby.events.shift(); this.hooks.event(lobby, event); return event;
   }
   private touch(lobby: Lobby) { lobby.activityAt = Date.now(); lobby.warningSent = false; }
   list(): LobbySummary[] { return [...this.lobbies.values()].filter((l) => !l.closed && l.visibility === 'public').map((l) => this.summary(l)); }
   summary(l: Lobby): LobbySummary { return { code: l.code, gameId: l.gameId, status: l.status, playerCount: l.players.length, maxPlayers: l.maxPlayers, visibility: l.visibility, passwordProtected: Boolean(l.passwordHash), joinable: l.status === 'waiting' && l.players.length < l.maxPlayers, hostName: l.players.find((player) => player.id === l.hostId)?.name ?? '' }; }
   view(lobby: Lobby, playerId: string): PublicLobby {
-    const game = lobby.game ? (lobby.gameId === 'schwimmen' ? knackPlayerView(lobby.game as KnackState, playerId) : lobby.gameId === 'mau-mau' ? mauMauPlayerView(lobby.game as MauMauState, playerId) : durakPlayerView(lobby.game as DurakState, playerId)) : undefined;
-    return { ...this.summary(lobby), players: lobby.players.map((p) => ({ id: p.id, name: p.name, connected: p.connected, isHost: p.isHost })), deckSize: lobby.deckSize, hostId: lobby.hostId, inactivityDeadline: lobby.activityAt + this.idleMs, ...(lobby.gameId === 'mau-mau' ? { mauMauRules: lobby.mauMauRules } : {}), events: lobby.events.filter((event) => event.visibility === 'public'), ...(game ? { game } : {}) };
+    const game = lobby.game ? (lobby.gameId === 'schwimmen' ? knackPlayerView(lobby.game as KnackState, playerId) : lobby.gameId === 'mau-mau' ? mauMauPlayerView(lobby.game as MauMauState, playerId) : lobby.gameId === 'romme' ? rommePlayerView(lobby.game as RommeState, playerId) : durakPlayerView(lobby.game as DurakState, playerId)) : undefined;
+    return { ...this.summary(lobby), players: lobby.players.map((p) => ({ id: p.id, name: p.name, connected: p.connected, isHost: p.isHost })), deckSize: lobby.deckSize, hostId: lobby.hostId, inactivityDeadline: lobby.activityAt + this.idleMs, ...(lobby.gameId === 'mau-mau' ? { mauMauRules: lobby.mauMauRules } : {}), ...(lobby.gameId === 'romme' ? { rommeRules: lobby.rommeRules } : {}), events: lobby.events.filter((event) => event.visibility === 'public' || event.recipientId === playerId), ...(game ? { game } : {}) };
   }
   find(code: string) { return this.lobbies.get(code.toUpperCase()); }
   playerForToken(lobby: Lobby, token: string) { return lobby.players.find((player) => player.tokenHash === hashToken(token)); }
@@ -43,12 +43,12 @@ export class LobbyManager {
     const candidate = (await this.hashPassword(password, lobby.passwordSalt)).hash;
     return timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(lobby.passwordHash, 'hex'));
   }
-  async create(name: string, settings: { gameId?: GameId; maxPlayers: number; deckSize: 32 | 36 | 52; visibility: 'public' | 'private'; password?: string; mauMauRules?: MauMauRules }, socketId: string) {
+  async create(name: string, settings: { gameId?: GameId; maxPlayers: number; deckSize: 32 | 36 | 52; visibility: 'public' | 'private'; password?: string; mauMauRules?: MauMauRules; rommeRules?: RommeRules }, socketId: string) {
     let code = safeCode(); while (this.lobbies.has(code)) code = safeCode();
     const token = this.token(); const id = randomUUID(); const now = Date.now();
     const player: LobbyPlayer = { id: randomUUID(), name, tokenHash: hashToken(token), connected: true, socketId, joinedAt: now, isHost: true };
-    const gameId = settings.gameId ?? 'durak'; const deckSize = gameId === 'durak' ? settings.deckSize : 32;
-    const lobby: Lobby = { id, code, gameId, status: 'waiting', visibility: settings.visibility, maxPlayers: settings.maxPlayers, deckSize, mauMauRules: { ...defaultMauMauRules, ...settings.mauMauRules }, hostId: player.id, players: [player], gameNumber: 0, activityAt: now, warningSent: false, sequence: 0, events: [], closed: false };
+    const gameId = settings.gameId ?? 'durak'; const deckSize = gameId === 'durak' ? settings.deckSize : gameId === 'romme' ? 52 : 32;
+    const lobby: Lobby = { id, code, gameId, status: 'waiting', visibility: settings.visibility, maxPlayers: settings.maxPlayers, deckSize, mauMauRules: { ...defaultMauMauRules, ...settings.mauMauRules }, rommeRules: { ...defaultRommeRules, ...settings.rommeRules }, hostId: player.id, players: [player], gameNumber: 0, activityAt: now, warningSent: false, sequence: 0, events: [], closed: false };
     if (settings.password) { const result = await this.hashPassword(settings.password); lobby.passwordHash = result.hash; lobby.passwordSalt = result.salt; }
     this.event(lobby, 'lobby.created', player.id); this.lobbies.set(code, lobby); this.hooks.listChanged();
     return { lobby, player, token };
@@ -81,14 +81,17 @@ export class LobbyManager {
       ? createKnackGame(`${lobby.id}:${lobby.gameNumber}`, lobby.players, randomInt)
       : lobby.gameId === 'mau-mau'
         ? createMauMauGame(`${lobby.id}:${lobby.gameNumber}`, lobby.players, randomInt, lobby.mauMauRules)
+        : lobby.gameId === 'romme'
+          ? createRommeGame(`${lobby.id}:${lobby.gameNumber}`, lobby.players, randomInt, lobby.rommeRules)
         : createDurakGame(`${lobby.id}:${lobby.gameNumber}`, lobby.players, lobby.deckSize as 36 | 52, randomInt); lobby.status = 'playing';
     this.touch(lobby); this.event(lobby, 'game.started', playerId, { gameNumber: lobby.gameNumber }); this.hooks.changed(lobby); this.hooks.listChanged();
   }
-  async update(lobby: Lobby, playerId: string, settings: { maxPlayers?: number | undefined; deckSize?: 36 | 52 | undefined; visibility?: 'public' | 'private' | undefined; password?: string | undefined; mauMauRules?: MauMauRules | undefined }) {
+  async update(lobby: Lobby, playerId: string, settings: { maxPlayers?: number | undefined; deckSize?: 36 | 52 | undefined; visibility?: 'public' | 'private' | undefined; password?: string | undefined; mauMauRules?: MauMauRules | undefined; rommeRules?: RommeRules | undefined }) {
     if (lobby.hostId !== playerId) throw new Error('host_only'); if (lobby.status !== 'waiting') throw new Error('game_already_started');
     if (settings.maxPlayers !== undefined) { if (settings.maxPlayers < lobby.players.length) throw new Error('player_limit_too_low'); lobby.maxPlayers = settings.maxPlayers; }
     if (settings.deckSize !== undefined && lobby.gameId === 'durak') lobby.deckSize = settings.deckSize; if (settings.visibility !== undefined) lobby.visibility = settings.visibility;
     if (settings.mauMauRules !== undefined && lobby.gameId === 'mau-mau') lobby.mauMauRules = { ...settings.mauMauRules };
+    if (settings.rommeRules !== undefined && lobby.gameId === 'romme') lobby.rommeRules = { ...settings.rommeRules };
     if (settings.password !== undefined) {
       if (settings.password) { const result = await this.hashPassword(settings.password); lobby.passwordHash = result.hash; lobby.passwordSalt = result.salt; }
       else { delete lobby.passwordHash; delete lobby.passwordSalt; }
@@ -101,12 +104,17 @@ export class LobbyManager {
   }
   action(lobby: Lobby, playerId: string, action: GameAction, expectedVersion?: number) {
     if (!lobby.game) throw new Error('game_not_started'); if (expectedVersion !== undefined && expectedVersion !== lobby.game.version) throw new Error('stale_action');
+    const handsBefore = new Map(lobby.game.players.map((player) => [player.id, new Set(player.hand.map((card) => card.id))]));
+    const tableCardsBefore = lobby.gameId === 'durak' ? new Set((lobby.game as DurakState).table.flatMap((pair) => pair.defense ? [pair.attack.id, pair.defense.id] : [pair.attack.id])) : new Set<string>();
     if (lobby.gameId === 'schwimmen') {
       if (!action.type.startsWith('schwimmen:')) throw new Error('invalid_action');
       lobby.game = applyKnackAction(lobby.game as KnackState, playerId, action as import('@collection52/shared').KnackAction, randomInt);
     } else if (lobby.gameId === 'mau-mau') {
       if (!action.type.startsWith('mau-mau:')) throw new Error('invalid_action');
       lobby.game = applyMauMauAction(lobby.game as MauMauState, playerId, action as import('@collection52/shared').MauMauAction, randomInt);
+    } else if (lobby.gameId === 'romme') {
+      if (!action.type.startsWith('romme:')) throw new Error('invalid_action');
+      lobby.game = applyRommeAction(lobby.game as RommeState, playerId, action as import('@collection52/shared').RommeAction, randomInt);
     } else {
       if (action.type.includes(':')) throw new Error('invalid_action');
       lobby.game = applyDurakAction(lobby.game as DurakState, playerId, action as import('@collection52/shared').DurakAction);
@@ -116,8 +124,20 @@ export class LobbyManager {
       : action.type === 'defend' ? { cardId: action.cardId, attackCardId: action.attackCardId }
       : action.type === 'schwimmen:swap-one' ? { handCardId: action.handCardId, centerCardId: action.centerCardId }
       : action.type === 'mau-mau:play' ? { cardId: action.cardId, ...(action.chosenSuit ? { chosenSuit: action.chosenSuit } : {}) }
+      : action.type === 'romme:draw' ? { source: action.source }
+      : action.type === 'romme:meld' ? { groupCount: action.groups.length, cardIds: action.groups.flatMap((group) => group.cardIds) }
+      : action.type === 'romme:lay-off' ? { meldId: action.meldId, cardIds: action.cardIds }
+      : action.type === 'romme:replace-joker' ? { meldId: action.meldId, jokerId: action.jokerId, cardIds: action.cardIds }
+      : action.type === 'romme:discard' ? { cardId: action.cardId }
       : {};
     this.event(lobby, `game.${action.type.replace(':', '.')}`, playerId, data);
+    const recordsPrivateDraws = lobby.gameId === 'durak' || action.type === 'mau-mau:draw' || action.type === 'romme:draw' || action.type === 'schwimmen:next-round';
+    if (recordsPrivateDraws) for (const player of lobby.game.players) {
+      const cardIds = action.type === 'schwimmen:next-round'
+        ? player.hand.map((card) => card.id)
+        : player.hand.filter((card) => !handsBefore.get(player.id)?.has(card.id) && !tableCardsBefore.has(card.id)).map((card) => card.id);
+      if (cardIds.length) this.event(lobby, 'game.cards.drawn', player.id, { cardIds }, 'private', player.id);
+    }
     this.hooks.changed(lobby);
   }
   detach(lobby: Lobby, playerId: string) {
@@ -136,6 +156,7 @@ export class LobbyManager {
       const remainingPlayerCount = lobby.players.length - 1;
       if (lobby.status === 'playing' && remainingPlayerCount >= 2 && lobby.gameId === 'durak') { lobby.game = withdrawDurakPlayer(lobby.game as DurakState, playerId); gameEffect = lobby.game.phase === 'finished' ? 'game_ended' : 'continued'; }
       else if (lobby.status === 'playing' && remainingPlayerCount >= 2 && lobby.gameId === 'schwimmen') { lobby.game = withdrawKnackPlayer(lobby.game as KnackState, playerId); gameEffect = lobby.game.phase === 'finished' ? 'game_ended' : 'continued'; }
+      else if (lobby.status === 'playing' && remainingPlayerCount >= 2 && lobby.gameId === 'romme') { lobby.game = withdrawRommePlayer(lobby.game as RommeState, playerId); gameEffect = lobby.game.phase === 'finished' ? 'game_ended' : 'continued'; }
       else { delete lobby.game; lobby.status = 'waiting'; gameEffect = 'round_cancelled'; }
     }
     lobby.players = lobby.players.filter((p) => p.id !== playerId);
