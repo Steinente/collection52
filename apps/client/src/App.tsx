@@ -14,8 +14,8 @@ type RommeGameView = { id: string; version: number; phase: 'playing'|'finished';
 type AnyGameView = GameView | KnackGameView | MauMauGameView | RommeGameView;
 type ProtocolEntry = { id: string; timestamp: number; text: string; private?: boolean };
 type RetainedLobby = { code: string; gameId: GameId; status: 'waiting' | 'playing' };
-type Preferences = { theme: 'system' | 'light' | 'dark'; accent: 'collection' | 'ocean' | 'violet' | 'amber' | 'rose' | 'custom'; customAccent: string; largeText: boolean; largeCards: boolean; highContrast: boolean; reducedMotion: boolean; speech: boolean; rate: number; volume: number };
-const defaultPrefs: Preferences = { theme: 'system', accent: 'collection', customAccent: '#c42b1c', largeText: false, largeCards: false, highContrast: false, reducedMotion: false, speech: false, rate: 1, volume: 1 };
+type Preferences = { theme: 'system' | 'light' | 'dark'; accent: 'collection' | 'ocean' | 'violet' | 'amber' | 'rose' | 'custom'; customAccent: string; largeText: boolean; largeCards: boolean; highContrast: boolean; reducedMotion: boolean; speech: boolean; turnSound: boolean; rate: number; volume: number };
+const defaultPrefs: Preferences = { theme: 'system', accent: 'collection', customAccent: '#c42b1c', largeText: false, largeCards: false, highContrast: false, reducedMotion: false, speech: false, turnSound: true, rate: 1, volume: 1 };
 const defaultMauMauRules: MauMauRules = { stackSevens: false, forbidJackOnJack: false, forbidJackAsFinal: false, aceReverses: false };
 const defaultRommeRules: RommeRules = { openingPoints: 40, requireDiscardUse: false };
 const accentChoices: Preferences['accent'][] = ['collection', 'ocean', 'violet', 'amber', 'rose', 'custom'];
@@ -47,6 +47,37 @@ const gameDefinitions = [
 ] as const;
 const LegalPage = lazy(() => import('./LegalPages').then((module) => ({ default: module.LegalPage })));
 
+function actionCueKey(game: AnyGameView | undefined, playerId: string): string {
+  if (!game || !playerId) return '';
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player?.connected || game.phase === 'finished') return '';
+  if ('currentPlayerId' in game) return game.phase === 'playing' && game.currentPlayerId === playerId ? `${game.id}:turn` : '';
+  const durakPlayer = game.players.find((candidate) => candidate.id === playerId);
+  if (!durakPlayer || durakPlayer.eliminated) return '';
+  if (game.phase === 'attack') return game.attackerId === playerId ? `${game.id}:attack` : '';
+  if (game.phase === 'defense') return game.defenderId === playerId ? `${game.id}:defense` : '';
+  if (game.phase !== 'throw-in') return '';
+  const defenderIndex = game.players.findIndex((candidate) => candidate.id === game.defenderId);
+  const circular = [...game.players.slice(defenderIndex + 1), ...game.players.slice(0, defenderIndex)];
+  const original = game.players.find((candidate) => candidate.id === game.roundAttackerId);
+  const eligible = [original, ...circular.filter((candidate) => candidate.id !== original?.id)].filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate && !candidate.eliminated && candidate.id !== game.defenderId && (candidate.handCount ?? candidate.hand.length) > 0));
+  return eligible.find((candidate) => !game.passedPlayerIds.includes(candidate.id))?.id === playerId ? `${game.id}:throw-in` : '';
+}
+
+async function playTurnCue(contextRef: { current: AudioContext | undefined }): Promise<void> {
+  try {
+    const context = contextRef.current?.state === 'closed' ? new AudioContext() : contextRef.current ?? new AudioContext(); contextRef.current = context;
+    if (context.state === 'suspended') await context.resume();
+    const now = context.currentTime;
+    for (const [index, frequency] of [659.25, 880].entries()) {
+      const oscillator = context.createOscillator(); const gain = context.createGain(); const startsAt = now + index * 0.11;
+      oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, startsAt);
+      gain.gain.setValueAtTime(0.0001, startsAt); gain.gain.exponentialRampToValueAtTime(0.12, startsAt + 0.018); gain.gain.exponentialRampToValueAtTime(0.0001, startsAt + 0.18);
+      oscillator.connect(gain); gain.connect(context.destination); oscillator.start(startsAt); oscillator.stop(startsAt + 0.19);
+    }
+  } catch { /* Browsers may block audio until the first user interaction. */ }
+}
+
 function TopLayerMessage({ className, role, children }: { className: string; role: 'alert' | 'status'; children: ReactNode }) {
   const [dialogLayer, setDialogLayer] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -66,6 +97,7 @@ export function App() {
   const [notice, setNotice] = useState(''); const [info, setInfo] = useState(''); const [warning, setWarning] = useState<number>(); const [events, setEvents] = useState<StructuredEvent[]>([]); const [retainedLobby, setRetainedLobby] = useState<RetainedLobby | undefined>(loadRetainedLobby);
   const [prefs, setPrefs] = useState(loadPrefs); const [settingsOpen, setSettingsOpen] = useState(false); const [rulesOpen, setRulesOpen] = useState(false); const [historyOpen, setHistoryOpen] = useState(false); const [protocolOpen, setProtocolOpen] = useState(true); const [protocolEntries, setProtocolEntries] = useState<ProtocolEntry[]>([]);
   const narratedGameId = useRef(''); const lastNarratedSequence = useRef(0); const previousGame = useRef<AnyGameView | undefined>(undefined);
+  const audioContext = useRef<AudioContext | undefined>(undefined); const previousActionCue = useRef('');
 
   const announce = useCallback((message: string) => {
     setNotice(message);
@@ -96,6 +128,16 @@ export function App() {
   const resumeRetainedLobby = () => { if (!retainedLobby) return; const token = localStorage.getItem(sessionKey(retainedLobby.code)); if (!token) { forgetRetainedLobby(retainedLobby.code); setError('invalid_session'); return; } socket.emit('lobby:resume', { code: retainedLobby.code, token }, (raw) => { const result = raw as Ack; if (!result.ok) { if (result.error === 'lobby_not_found' || result.error === 'invalid_session') forgetRetainedLobby(retainedLobby.code); setError(result.error ?? 'unknown_error'); return; } setPlayerId(result.playerId ?? ''); history.replaceState({}, '', `?lobby=${retainedLobby.code}`); }); };
   const permanentlyLeaveRetainedLobby = () => { if (!retainedLobby || !confirm(t('confirmPermanentLeave'))) return; const token = localStorage.getItem(sessionKey(retainedLobby.code)); if (!token) { forgetRetainedLobby(retainedLobby.code); return; } socket.emit('lobby:leave', { code: retainedLobby.code, token }, (raw) => { const result = raw as Ack; if (!result.ok && result.error !== 'lobby_not_found') { setError(result.error ?? 'unknown_error'); return; } forgetRetainedLobby(retainedLobby.code); setInfo(t('permanentlyLeftNotice')); }); };
   const game = lobby?.game as AnyGameView | undefined; const me = game?.players.find((p) => p.id === playerId);
+  useEffect(() => {
+    if (!prefs.turnSound || audioContext.current?.state === 'running') return;
+    const unlock = () => { const context = audioContext.current ?? new AudioContext(); audioContext.current = context; void context.resume(); };
+    window.addEventListener('pointerdown', unlock, { once:true }); window.addEventListener('keydown', unlock, { once:true });
+    return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); };
+  }, [prefs.turnSound]);
+  useEffect(() => {
+    const cue = actionCueKey(game, playerId); const previous = previousActionCue.current; previousActionCue.current = cue;
+    if (prefs.turnSound && cue && cue !== previous) void playTurnCue(audioContext);
+  }, [game, playerId, prefs.turnSound]);
   useEffect(() => {
     if (!game || !lobby) { previousGame.current = undefined; return; }
     const playerName = (id?: string) => lobby.players.find((player) => player.id === id)?.name ?? '';
@@ -445,7 +487,7 @@ function LobbySettings({ lobby, setError }: { lobby: PublicLobby; setError: (val
 function SettingsDialog({ prefs, setPrefs, close, language, setLanguage }: { prefs: Preferences; setPrefs: (p: Preferences) => void; close: () => void; language: string; setLanguage: (l: string) => void }) {
   const { t } = useTranslation(); const update = <K extends keyof Preferences>(key: K, value: Preferences[K]) => setPrefs({ ...prefs, [key]: value });
   const customColor = validHexColor(prefs.customAccent) ? prefs.customAccent : defaultPrefs.customAccent;
-  return <Dialog title={t('settings')} close={close}><div className="settings-grid"><label>{t('language')}<ResponsiveSelect label={t('language')} value={language} onChange={setLanguage} options={[{ value:'de', label:'Deutsch' },{ value:'en', label:'English' }]} /></label><label>{t('theme')}<ResponsiveSelect label={t('theme')} value={prefs.theme} onChange={(value) => update('theme', value as Preferences['theme'])} options={[{ value:'system', label:t('themeSystem') },{ value:'light', label:t('themeLight') },{ value:'dark', label:t('themeDark') }]} /></label><label>{t('accentColor')}<ResponsiveSelect label={t('accentColor')} value={prefs.accent} onChange={(value) => update('accent', value as Preferences['accent'])} options={[{ value:'collection', label:t('accentCollection') },{ value:'ocean', label:t('accentOcean') },{ value:'violet', label:t('accentViolet') },{ value:'amber', label:t('accentAmber') },{ value:'rose', label:t('accentRose') },{ value:'custom', label:t('accentCustom') }]} /></label><div className={`custom-accent-card ${prefs.accent === 'custom' ? 'active' : 'disabled'}`} aria-disabled={prefs.accent !== 'custom'}><span className="custom-accent-copy"><strong>{t('accentCustomColor')}</strong><small>{t('accentCustomHint')}</small></span><label className="accent-color-picker"><span className="sr-only">{t('accentCustomColor')}</span><input className="accent-color-input" type="color" value={customColor} disabled={prefs.accent !== 'custom'} onChange={(event) => setPrefs({ ...prefs, customAccent: event.target.value })} /><output>{customColor.toUpperCase()}</output></label></div>{(['largeText','largeCards','highContrast','reducedMotion','speech'] as const).map((key) => <label className="check" key={key}><input type="checkbox" checked={prefs[key]} onChange={(e) => update(key, e.target.checked)} />{t(key)}</label>)}<label>{t('speechRate')}<input type="range" min="0.6" max="1.6" step="0.1" value={prefs.rate} disabled={!prefs.speech} onChange={(e) => update('rate', Number(e.target.value))} /><output>{prefs.rate.toFixed(1)}</output></label><label>{t('speechVolume')}<input type="range" min="0" max="1" step="0.1" value={prefs.volume} disabled={!prefs.speech} onChange={(e) => update('volume', Number(e.target.value))} /><output>{Math.round(prefs.volume*100)}%</output></label>{!('speechSynthesis' in window) && <p role="status">{t('speechUnavailable')}</p>}</div></Dialog>;
+  return <Dialog title={t('settings')} close={close}><div className="settings-grid"><label>{t('language')}<ResponsiveSelect label={t('language')} value={language} onChange={setLanguage} options={[{ value:'de', label:'Deutsch' },{ value:'en', label:'English' }]} /></label><label>{t('theme')}<ResponsiveSelect label={t('theme')} value={prefs.theme} onChange={(value) => update('theme', value as Preferences['theme'])} options={[{ value:'system', label:t('themeSystem') },{ value:'light', label:t('themeLight') },{ value:'dark', label:t('themeDark') }]} /></label><label>{t('accentColor')}<ResponsiveSelect label={t('accentColor')} value={prefs.accent} onChange={(value) => update('accent', value as Preferences['accent'])} options={[{ value:'collection', label:t('accentCollection') },{ value:'ocean', label:t('accentOcean') },{ value:'violet', label:t('accentViolet') },{ value:'amber', label:t('accentAmber') },{ value:'rose', label:t('accentRose') },{ value:'custom', label:t('accentCustom') }]} /></label><div className={`custom-accent-card ${prefs.accent === 'custom' ? 'active' : 'disabled'}`} aria-disabled={prefs.accent !== 'custom'}><span className="custom-accent-copy"><strong>{t('accentCustomColor')}</strong><small>{t('accentCustomHint')}</small></span><label className="accent-color-picker"><span className="sr-only">{t('accentCustomColor')}</span><input className="accent-color-input" type="color" value={customColor} disabled={prefs.accent !== 'custom'} onChange={(event) => setPrefs({ ...prefs, customAccent: event.target.value })} /><output>{customColor.toUpperCase()}</output></label></div>{(['largeText','largeCards','highContrast','reducedMotion','turnSound','speech'] as const).map((key) => <label className="check" key={key}><input type="checkbox" checked={prefs[key]} onChange={(e) => update(key, e.target.checked)} />{t(key)}</label>)}<label>{t('speechRate')}<input type="range" min="0.6" max="1.6" step="0.1" value={prefs.rate} disabled={!prefs.speech} onChange={(e) => update('rate', Number(e.target.value))} /><output>{prefs.rate.toFixed(1)}</output></label><label>{t('speechVolume')}<input type="range" min="0" max="1" step="0.1" value={prefs.volume} disabled={!prefs.speech} onChange={(e) => update('volume', Number(e.target.value))} /><output>{Math.round(prefs.volume*100)}%</output></label>{!('speechSynthesis' in window) && <p role="status">{t('speechUnavailable')}</p>}</div></Dialog>;
 }
 
 type SelectOption = { value: string; label: string; aliases?: string[]; disabled?: boolean };

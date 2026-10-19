@@ -172,6 +172,7 @@
   "largeCards": "Large cards",
   "highContrast": "High contrast",
   "reducedMotion": "Reduced motion",
+  "turnSound": "Play a sound when it is your turn",
   "speech": "Enable speech",
   "speechRate": "Speech rate",
   "speechVolume": "Volume",
