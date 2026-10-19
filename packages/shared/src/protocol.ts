@@ -2,12 +2,12 @@ import { z } from 'zod';
 
 export const usernameSchema = z.string().min(1).max(16).regex(/^[\p{L}\p{N}_-]+$/u, 'invalid_characters').refine((name) => (name.match(/\p{L}/gu)?.length ?? 0) >= 3, 'not_enough_letters');
 export const lobbyCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z2-9]{8}$/);
-export const gameIdSchema = z.enum(['durak', 'knack']);
+export const gameIdSchema = z.enum(['durak', 'schwimmen']);
 export const lobbySettingsSchema = z.object({
   gameId: gameIdSchema.default('durak'), maxPlayers: z.number().int().min(2).max(6), deckSize: z.union([z.literal(32), z.literal(36), z.literal(52)]),
   visibility: z.enum(['public', 'private']), password: z.string().max(72).optional()
 }).superRefine((settings, context) => {
-  if (settings.gameId === 'knack' && settings.deckSize !== 32) context.addIssue({ code: 'custom', path: ['deckSize'], message: 'invalid_knack_deck' });
+  if (settings.gameId === 'schwimmen' && settings.deckSize !== 32) context.addIssue({ code: 'custom', path: ['deckSize'], message: 'invalid_schwimmen_deck' });
   if (settings.gameId === 'durak' && settings.deckSize === 32) context.addIssue({ code: 'custom', path: ['deckSize'], message: 'invalid_durak_deck' });
 });
 export const lobbyUpdateSchema = z.object({
@@ -18,9 +18,9 @@ export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('attack'), cardIds: z.array(z.string().min(1)).min(1).max(6) }),
   z.object({ type: z.literal('defend'), cardId: z.string().min(1), attackCardId: z.string().min(1) }),
   z.object({ type: z.literal('take') }), z.object({ type: z.literal('pass') }),
-  z.object({ type: z.literal('knack:swap-one'), handCardId: z.string().min(1), centerCardId: z.string().min(1) }),
-  z.object({ type: z.literal('knack:swap-all') }), z.object({ type: z.literal('knack:pass') }),
-  z.object({ type: z.literal('knack:knock') }), z.object({ type: z.literal('knack:next-round') })
+  z.object({ type: z.literal('schwimmen:swap-one'), handCardId: z.string().min(1), centerCardId: z.string().min(1) }),
+  z.object({ type: z.literal('schwimmen:swap-all') }), z.object({ type: z.literal('schwimmen:pass') }),
+  z.object({ type: z.literal('schwimmen:knock') }), z.object({ type: z.literal('schwimmen:next-round') })
 ]);
 
 export type GameId = z.infer<typeof gameIdSchema>;

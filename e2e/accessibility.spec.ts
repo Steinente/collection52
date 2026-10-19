@@ -3,13 +3,13 @@ import AxeBuilder from '@axe-core/playwright';
 
 test('home is keyboard-ready and has no detectable WCAG A/AA violations', async ({ page }, testInfo) => {
   await page.goto('/');
-  await expect(page.locator('html')).toHaveAttribute('data-accent', 'system');
+  await expect(page.locator('html')).toHaveAttribute('data-accent', 'collection');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(page.locator('.skip-link')).toBeFocused();
   const name = page.getByLabel(/Display name|Benutzername/); const createLobby = page.getByRole('button', { name: /Create lobby|Lobby erstellen/ }); await expect(name).toHaveAttribute('maxlength', '16'); await expect(page.getByText(/1 to 32 characters|1 bis 32 Zeichen/)).toHaveCount(0); await expect(createLobby).toBeDisabled(); await expect(page.getByRole('button', { name: /Join lobby|Lobby beitreten/ })).toBeDisabled(); await name.focus(); await name.blur(); await expect(page.getByText(/Please enter a display name|Bitte gib einen Benutzernamen/)).toBeVisible();
   await name.fill('A1'); await expect(name).toHaveAttribute('aria-invalid', 'true'); await expect(page.getByText(/at least three letters|mindestens drei Buchstaben/)).toBeVisible(); await expect(createLobby).toBeDisabled(); await name.fill('Anna!'); await expect(page.getByText(/16 letters, numbers|16 Buchstaben, Zahlen/)).toBeVisible(); await expect(createLobby).toBeDisabled(); await name.fill('Ann_1-'); await expect(name).toHaveAttribute('aria-invalid', 'false'); await expect(createLobby).toBeEnabled(); await name.fill('Anna'); const code = page.getByLabel(/Lobby code|Lobby-Code/); await code.focus(); await code.blur(); await expect(code).toHaveAttribute('aria-invalid', 'false'); await code.fill('AAAAAAAA'); await expect(page.getByText(/No lobby was found for this code|Unter diesem Code wurde keine Lobby gefunden/)).toBeVisible(); await expect(code).toHaveAttribute('aria-invalid', 'true'); await expect(page.getByRole('button', { name: /Join lobby|Lobby beitreten/ })).toBeDisabled();
-  await expect(page.getByRole('tooltip')).toHaveCount(0); await page.getByRole('button', { name: /Show all games|Alle Spiele anzeigen/ }).click(); const gamesDialog = page.getByRole('dialog'); const searchGames = gamesDialog.getByRole('searchbox', { name: /Search games|Spiele suchen/ }); await expect(searchGames).toHaveAttribute('placeholder', /Enter a name|Name eingeben/); await expect(gamesDialog.locator('.game-catalog-mark')).toHaveCount(0); await expect(gamesDialog.locator('.game-alias-chip').filter({ hasText: 'Dummkopf' })).toHaveCount(1); await searchGames.fill('Schnauz'); await expect(gamesDialog.locator('.game-catalog-card')).toContainText(/Knack/); await searchGames.fill('Dummkopf'); await expect(gamesDialog.locator('.game-catalog-card')).toContainText(/Durak/); await searchGames.fill('Skat'); await expect(gamesDialog.getByText(/No game found|Kein Spiel gefunden/)).toBeVisible(); await expect(gamesDialog.getByText(/Try a different name\.|Versuche einen anderen Namen\./)).toBeVisible(); await gamesDialog.getByRole('button', { name: /Dismiss|Schließen/ }).click();
+  await expect(page.getByRole('tooltip')).toHaveCount(0); await page.getByRole('button', { name: /Show all games|Alle Spiele anzeigen/ }).click(); const gamesDialog = page.getByRole('dialog'); const searchGames = gamesDialog.getByRole('searchbox', { name: /Search games|Spiele suchen/ }); await expect(searchGames).toHaveAttribute('placeholder', /Enter a name|Name eingeben/); await expect(gamesDialog.locator('.game-catalog-mark')).toHaveCount(0); await expect(gamesDialog.locator('.game-alias-chip').filter({ hasText: 'Fool' })).toHaveCount(1); await searchGames.fill('Schnautz'); await expect(gamesDialog.locator('.game-catalog-card')).toContainText(/Schwimmen/); await searchGames.fill('Fool'); await expect(gamesDialog.locator('.game-catalog-card')).toContainText(/Durak/); await searchGames.fill('Skat'); await expect(gamesDialog.getByText(/No game found|Kein Spiel gefunden/)).toBeVisible(); await expect(gamesDialog.getByText(/Try a different name\.|Versuche einen anderen Namen\./)).toBeVisible(); await gamesDialog.getByRole('button', { name: /Dismiss|Schließen/ }).click();
   await page.goto('/?lobby=AAAAAAAA'); await expect(page).toHaveURL(/\/$/); await expect(page.getByLabel(/Lobby code|Lobby-Code/)).toHaveValue('');
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(results.violations).toEqual([]);
@@ -83,7 +83,7 @@ test('two browser contexts can create, join, and start Durak', async ({ browser 
   }
 });
 
-test('two browser contexts can play a complete Knack turn', async ({ browser }) => {
+test('two browser contexts can play a complete Schwimmen turn', async ({ browser }) => {
   const hostContext = await browser.newContext(); const guestContext = await browser.newContext();
   const host = await hostContext.newPage(); const guest = await guestContext.newPage();
   try {
@@ -97,7 +97,7 @@ test('two browser contexts can play a complete Knack turn', async ({ browser }) 
     await guest.goto('/'); await guest.getByLabel(/Display name|Benutzername/).fill('Berta'); await guest.getByLabel(/Lobby code|Lobby-Code/).fill(code);
     await expect(guest.getByRole('button', { name: /Join lobby|Lobby beitreten/ })).toBeEnabled(); await guest.getByRole('button', { name: /Join lobby|Lobby beitreten/ }).click();
     await expect(host.getByText('Berta', { exact: true })).toBeVisible(); await host.getByRole('button', { name: /Start game|Partie starten/ }).click();
-    await expect(host.getByRole('heading', { level: 1, name: 'Knack' })).toBeVisible(); await expect(guest.getByRole('heading', { level: 1, name: 'Knack' })).toBeVisible();
+    await expect(host.getByRole('heading', { level: 1, name: 'Schwimmen' })).toBeVisible(); await expect(guest.getByRole('heading', { level: 1, name: 'Schwimmen' })).toBeVisible();
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const next = host.getByRole('button', { name: /Next round|Nächste Runde/ });
       if (!await next.count()) break;

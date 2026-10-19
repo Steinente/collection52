@@ -22,10 +22,10 @@ describe('LobbyManager', () => {
   });
   it('creates, starts, and privately projects a Knack game', async () => {
     const manager = new LobbyManager(hooks());
-    const made = await manager.create('Anna', { gameId: 'knack', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
+    const made = await manager.create('Anna', { gameId: 'schwimmen', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
     const joined = await manager.join(made.lobby, 'Ben', undefined, 's2');
     manager.start(made.lobby, made.player.id);
-    expect(made.lobby.gameId).toBe('knack'); expect(made.lobby.deckSize).toBe(32); expect(manager.summary(made.lobby).gameId).toBe('knack');
+    expect(made.lobby.gameId).toBe('schwimmen'); expect(made.lobby.deckSize).toBe(32); expect(manager.summary(made.lobby).gameId).toBe('schwimmen');
     const hostView = manager.view(made.lobby, made.player.id).game as { players: Array<{ id: string; hand: unknown[]; handCount?: number }>; center: unknown[] };
     expect(hostView.center).toHaveLength(3); expect(hostView.players.find((player) => player.id === made.player.id)?.hand).toHaveLength(3);
     expect(hostView.players.find((player) => player.id === joined.player.id)?.hand).toHaveLength(0); expect(hostView.players.find((player) => player.id === joined.player.id)?.handCount).toBe(3);

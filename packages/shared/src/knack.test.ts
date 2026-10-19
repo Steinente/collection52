@@ -21,38 +21,38 @@ describe('knack engine', () => {
   it('swaps one selected hand and center card without mutating the source', () => {
     const game = createKnackGame('g', people, fixedRandom); const player = game.players.find((candidate) => candidate.id === game.currentPlayerId)!;
     const handCard = player.hand[0]!; const centerCard = game.center[0]!;
-    const next = applyKnackAction(game, player.id, { type: 'knack:swap-one', handCardId: handCard.id, centerCardId: centerCard.id }, fixedRandom);
+    const next = applyKnackAction(game, player.id, { type: 'schwimmen:swap-one', handCardId: handCard.id, centerCardId: centerCard.id }, fixedRandom);
     expect(player.hand[0]).toEqual(handCard); expect(next.players.find((candidate) => candidate.id === player.id)?.hand).toContainEqual(centerCard); expect(next.center).toContainEqual(handCard);
   });
   it('allows a complete three-card exchange and advances the turn', () => {
     const game = createKnackGame('g', people, fixedRandom); const playerId = game.currentPlayerId; const oldCenter = [...game.center];
-    const next = applyKnackAction(game, playerId, { type: 'knack:swap-all' }, fixedRandom);
+    const next = applyKnackAction(game, playerId, { type: 'schwimmen:swap-all' }, fixedRandom);
     expect(next.players.find((player) => player.id === playerId)?.hand).toEqual(oldCenter); expect(next.currentPlayerId).not.toBe(playerId);
   });
   it('gives every opponent one final turn after knocking', () => {
     let game = createKnackGame('g', people, fixedRandom); const knocker = game.currentPlayerId;
-    game = applyKnackAction(game, knocker, { type: 'knack:knock' }, fixedRandom);
+    game = applyKnackAction(game, knocker, { type: 'schwimmen:knock' }, fixedRandom);
     expect(game.finalTurnsLeft).toBe(2);
-    game = applyKnackAction(game, game.currentPlayerId, { type: 'knack:pass' }, fixedRandom);
-    game = applyKnackAction(game, game.currentPlayerId, { type: 'knack:pass' }, fixedRandom);
+    game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:pass' }, fixedRandom);
+    game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:pass' }, fixedRandom);
     expect(game.phase).toBe('round-ended'); expect(game.roundResult?.reason).toBe('knock');
   });
   it('refreshes the center after everybody passes', () => {
     let game = createKnackGame('g', people, fixedRandom); const oldCenter = game.center.map((entry) => entry.id);
-    for (let index = 0; index < people.length; index += 1) game = applyKnackAction(game, game.currentPlayerId, { type: 'knack:pass' }, fixedRandom);
+    for (let index = 0; index < people.length; index += 1) game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:pass' }, fixedRandom);
     expect(game.center.map((entry) => entry.id)).not.toEqual(oldCenter); expect(game.discard).toHaveLength(3);
   });
   it('does not eliminate everybody when all active hands tie', () => {
     let game = createKnackGame('g', people.slice(0, 2), fixedRandom);
     for (const player of game.players) { player.lives = 0; player.swimming = true; player.hand = [card('clubs', '7'), card('diamonds', '8'), card('hearts', '9')]; }
-    game = applyKnackAction(game, game.currentPlayerId, { type: 'knack:knock' }, fixedRandom);
-    game = applyKnackAction(game, game.currentPlayerId, { type: 'knack:pass' }, fixedRandom);
+    game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:knock' }, fixedRandom);
+    game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:pass' }, fixedRandom);
     expect(game.players.every((player) => !player.eliminated)).toBe(true); expect(game.roundResult?.loserIds).toEqual([]);
   });
   it('ends the round immediately when an exchange makes 31', () => {
     const game = createKnackGame('g', people.slice(0, 2), fixedRandom); const player = game.players.find((candidate) => candidate.id === game.currentPlayerId)!;
     player.hand = [card('hearts', 'ace'), card('hearts', 'king'), card('clubs', '7')]; game.center = [card('hearts', 'queen'), card('diamonds', '8'), card('spades', '9')];
-    const next = applyKnackAction(game, player.id, { type: 'knack:swap-one', handCardId: 'clubs-7', centerCardId: 'hearts-queen' }, fixedRandom);
+    const next = applyKnackAction(game, player.id, { type: 'schwimmen:swap-one', handCardId: 'clubs-7', centerCardId: 'hearts-queen' }, fixedRandom);
     expect(next.phase).toBe('round-ended'); expect(next.roundResult?.reason).toBe('thirty-one');
   });
   it('moves from three lives through swimming to elimination and a winner', () => {
@@ -60,9 +60,9 @@ describe('knack engine', () => {
     for (let loss = 0; loss < 4; loss += 1) {
       game.players.find((player) => player.id === 'a')!.hand = [card('hearts', 'ace'), card('hearts', 'king'), card('hearts', '9')];
       game.players.find((player) => player.id === loserId)!.hand = [card('clubs', '7'), card('diamonds', '8'), card('spades', '9')];
-      game = applyKnackAction(game, game.currentPlayerId, { type: 'knack:knock' }, fixedRandom);
-      game = applyKnackAction(game, game.currentPlayerId, { type: 'knack:pass' }, fixedRandom);
-      if (loss < 3) game = applyKnackAction(game, 'a', { type: 'knack:next-round' }, fixedRandom);
+      game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:knock' }, fixedRandom);
+      game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:pass' }, fixedRandom);
+      if (loss < 3) game = applyKnackAction(game, 'a', { type: 'schwimmen:next-round' }, fixedRandom);
     }
     const loser = game.players.find((player) => player.id === loserId)!;
     expect(loser.eliminated).toBe(true); expect(game.phase).toBe('finished'); expect(game.result?.winnerId).toBe('a');

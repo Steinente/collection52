@@ -17,11 +17,11 @@ export type KnackState = {
   roundResult?: KnackRoundResult; result?: KnackResult;
 };
 export type KnackAction =
-  | { type: 'knack:swap-one'; handCardId: string; centerCardId: string }
-  | { type: 'knack:swap-all' }
-  | { type: 'knack:pass' }
-  | { type: 'knack:knock' }
-  | { type: 'knack:next-round' };
+  | { type: 'schwimmen:swap-one'; handCardId: string; centerCardId: string }
+  | { type: 'schwimmen:swap-all' }
+  | { type: 'schwimmen:pass' }
+  | { type: 'schwimmen:knock' }
+  | { type: 'schwimmen:next-round' };
 
 const cardPoints: Record<Rank, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
@@ -113,24 +113,24 @@ export function applyKnackAction(state: KnackState, playerId: string, action: Kn
   const player = next.players.find((candidate) => candidate.id === playerId);
   if (!player || player.eliminated) throw new RuleError('not_active');
   if (!player.connected) throw new RuleError('player_offline');
-  if (action.type === 'knack:next-round') {
+  if (action.type === 'schwimmen:next-round') {
     if (next.phase !== 'round-ended') throw new RuleError('round_not_ended');
     dealRound(next, randomInt); next.version += 1; return next;
   }
   if (next.phase === 'finished') throw new RuleError('game_finished');
   if (next.phase !== 'playing') throw new RuleError('round_ended');
   if (next.currentPlayerId !== playerId) throw new RuleError('not_your_turn');
-  if (action.type === 'knack:swap-one') {
+  if (action.type === 'schwimmen:swap-one') {
     const handIndex = player.hand.findIndex((card) => card.id === action.handCardId);
     const centerIndex = next.center.findIndex((card) => card.id === action.centerCardId);
     if (handIndex < 0) throw new RuleError('card_not_in_hand');
     if (centerIndex < 0) throw new RuleError('card_not_in_center');
     [player.hand[handIndex], next.center[centerIndex]] = [next.center[centerIndex]!, player.hand[handIndex]!];
     next.consecutivePasses = 0; completeTurn(next, playerId);
-  } else if (action.type === 'knack:swap-all') {
+  } else if (action.type === 'schwimmen:swap-all') {
     const oldHand = player.hand; player.hand = next.center; next.center = oldHand;
     next.consecutivePasses = 0; completeTurn(next, playerId);
-  } else if (action.type === 'knack:pass') {
+  } else if (action.type === 'schwimmen:pass') {
     next.consecutivePasses += 1;
     if (!next.closingPlayerId && next.consecutivePasses >= activePlayers(next).length) {
       if (next.deck.length < 3) finishRound(next, 'stock-empty');

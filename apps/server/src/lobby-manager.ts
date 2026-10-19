@@ -30,7 +30,7 @@ export class LobbyManager {
   list(): LobbySummary[] { return [...this.lobbies.values()].filter((l) => !l.closed && l.visibility === 'public').map((l) => this.summary(l)); }
   summary(l: Lobby): LobbySummary { return { code: l.code, gameId: l.gameId, status: l.status, playerCount: l.players.length, maxPlayers: l.maxPlayers, visibility: l.visibility, passwordProtected: Boolean(l.passwordHash), joinable: l.status === 'waiting' && l.players.length < l.maxPlayers, hostName: l.players.find((player) => player.id === l.hostId)?.name ?? '' }; }
   view(lobby: Lobby, playerId: string): PublicLobby {
-    const game = lobby.game ? (lobby.gameId === 'knack' ? knackPlayerView(lobby.game as KnackState, playerId) : durakPlayerView(lobby.game as DurakState, playerId)) : undefined;
+    const game = lobby.game ? (lobby.gameId === 'schwimmen' ? knackPlayerView(lobby.game as KnackState, playerId) : durakPlayerView(lobby.game as DurakState, playerId)) : undefined;
     return { ...this.summary(lobby), players: lobby.players.map((p) => ({ id: p.id, name: p.name, connected: p.connected, isHost: p.isHost })), deckSize: lobby.deckSize, hostId: lobby.hostId, inactivityDeadline: lobby.activityAt + this.idleMs, events: lobby.events.filter((event) => event.visibility === 'public'), ...(game ? { game } : {}) };
   }
   find(code: string) { return this.lobbies.get(code.toUpperCase()); }
@@ -45,7 +45,7 @@ export class LobbyManager {
     let code = safeCode(); while (this.lobbies.has(code)) code = safeCode();
     const token = this.token(); const id = randomUUID(); const now = Date.now();
     const player: LobbyPlayer = { id: randomUUID(), name, tokenHash: hashToken(token), connected: true, socketId, joinedAt: now, isHost: true };
-    const gameId = settings.gameId ?? 'durak'; const deckSize = gameId === 'knack' ? 32 : settings.deckSize;
+    const gameId = settings.gameId ?? 'durak'; const deckSize = gameId === 'schwimmen' ? 32 : settings.deckSize;
     const lobby: Lobby = { id, code, gameId, status: 'waiting', visibility: settings.visibility, maxPlayers: settings.maxPlayers, deckSize, hostId: player.id, players: [player], gameNumber: 0, activityAt: now, warningSent: false, sequence: 0, events: [], closed: false };
     if (settings.password) { const result = await this.hashPassword(settings.password); lobby.passwordHash = result.hash; lobby.passwordSalt = result.salt; }
     this.event(lobby, 'lobby.created', player.id); this.lobbies.set(code, lobby); this.hooks.listChanged();
@@ -75,7 +75,7 @@ export class LobbyManager {
   start(lobby: Lobby, playerId: string) {
     if (lobby.hostId !== playerId) throw new Error('host_only'); if (lobby.status !== 'waiting') throw new Error('game_already_started');
     if (lobby.players.filter((p) => p.connected).length < 2) throw new Error('not_enough_players'); if (lobby.players.some((p) => !p.connected)) throw new Error('player_offline');
-    lobby.gameNumber += 1; lobby.game = lobby.gameId === 'knack'
+    lobby.gameNumber += 1; lobby.game = lobby.gameId === 'schwimmen'
       ? createKnackGame(`${lobby.id}:${lobby.gameNumber}`, lobby.players, randomInt)
       : createDurakGame(`${lobby.id}:${lobby.gameNumber}`, lobby.players, lobby.deckSize as 36 | 52, randomInt); lobby.status = 'playing';
     this.touch(lobby); this.event(lobby, 'game.started', playerId, { gameNumber: lobby.gameNumber }); this.hooks.changed(lobby); this.hooks.listChanged();
@@ -96,17 +96,17 @@ export class LobbyManager {
   }
   action(lobby: Lobby, playerId: string, action: GameAction, expectedVersion?: number) {
     if (!lobby.game) throw new Error('game_not_started'); if (expectedVersion !== undefined && expectedVersion !== lobby.game.version) throw new Error('stale_action');
-    if (lobby.gameId === 'knack') {
-      if (!action.type.startsWith('knack:')) throw new Error('invalid_action');
+    if (lobby.gameId === 'schwimmen') {
+      if (!action.type.startsWith('schwimmen:')) throw new Error('invalid_action');
       lobby.game = applyKnackAction(lobby.game as KnackState, playerId, action as import('@collection52/shared').KnackAction, randomInt);
     } else {
-      if (action.type.startsWith('knack:')) throw new Error('invalid_action');
+      if (action.type.startsWith('schwimmen:')) throw new Error('invalid_action');
       lobby.game = applyDurakAction(lobby.game as DurakState, playerId, action as import('@collection52/shared').DurakAction);
     }
     this.touch(lobby);
     const data = action.type === 'attack' ? { cardIds: action.cardIds }
       : action.type === 'defend' ? { cardId: action.cardId, attackCardId: action.attackCardId }
-      : action.type === 'knack:swap-one' ? { handCardId: action.handCardId, centerCardId: action.centerCardId }
+      : action.type === 'schwimmen:swap-one' ? { handCardId: action.handCardId, centerCardId: action.centerCardId }
       : {};
     this.event(lobby, `game.${action.type.replace(':', '.')}`, playerId, data);
     this.hooks.changed(lobby);
