@@ -145,6 +145,22 @@ export function applyKnackAction(state: KnackState, playerId: string, action: Kn
   return next;
 }
 
+export function withdrawKnackPlayer(state: KnackState, playerId: string): KnackState {
+  const next = structuredClone(state); const leavingIndex = next.players.findIndex((player) => player.id === playerId);
+  if (leavingIndex < 0) throw new RuleError('player_not_found');
+  const wasCurrent = next.currentPlayerId === playerId; const wasDealer = next.dealerId === playerId; const wasClosing = next.closingPlayerId === playerId;
+  next.discard.push(...next.players[leavingIndex]!.hand); next.players.splice(leavingIndex, 1);
+  if (!next.players.length) throw new RuleError('no_active_player');
+  const remaining = activePlayers(next);
+  if (remaining.length === 1) { next.phase = 'finished'; next.result = { winnerId: remaining[0]!.id }; delete next.closingPlayerId; next.finalTurnsLeft = 0; next.version += 1; return next; }
+  const nextSeat = next.players[leavingIndex % next.players.length]!;
+  if (wasDealer) next.dealerId = nextSeat.id;
+  if (wasClosing) { delete next.closingPlayerId; next.finalTurnsLeft = 0; }
+  else if (next.closingPlayerId) next.finalTurnsLeft = Math.min(next.finalTurnsLeft, remaining.length - 1);
+  if (wasCurrent && next.phase === 'playing') next.currentPlayerId = nextSeat.eliminated ? nextActive(next, nextSeat.id).id : nextSeat.id;
+  next.version += 1; return next;
+}
+
 export function knackPlayerView(state: KnackState, playerId: string) {
   return { ...state, players: state.players.map((player) => player.id === playerId ? player : { ...player, hand: [], handCount: player.hand.length }), deck: [], deckCount: state.deck.length };
 }

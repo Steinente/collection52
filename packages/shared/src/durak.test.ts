@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyDurakAction, beats, createDeck, createDurakGame, RuleError } from './index.js';
+import { applyDurakAction, beats, createDeck, createDurakGame, RuleError, withdrawDurakPlayer } from './index.js';
 
 const players = [{ id: 'a', name: 'Anna' }, { id: 'b', name: 'Ben' }];
 const fixedRandom = () => 0;
@@ -49,5 +49,9 @@ describe('durak engine', () => {
     const attack = attacker.hand[0]!; attacker.hand = attacker.hand.slice(1); game.table = [{ attack }]; game.phase = 'defense';
     const next = applyDurakAction(game, defender.id, { type: 'take' });
     expect(next.table).toHaveLength(0); expect(next.phase).toBe('attack'); expect(next.players.find((p) => p.id === defender.id)?.hand.some((card) => card.id === attack.id)).toBe(true);
+  });
+  it('removes a withdrawing player and starts a valid new bout for the remaining players', () => {
+    const game = createDurakGame('g', [...players, { id: 'c', name: 'Clara' }], 36, fixedRandom); const leaving = game.players.find((player) => player.id !== game.defenderId && player.id !== game.attackerId) ?? game.players.find((player) => player.id === game.attackerId)!;
+    const next = withdrawDurakPlayer(game, leaving.id); expect(next.players.map((player) => player.id)).not.toContain(leaving.id); expect(next.players).toHaveLength(2); expect(next.phase).toBe('attack'); expect(next.attackerId).not.toBe(leaving.id); expect(next.defenderId).not.toBe(leaving.id);
   });
 });

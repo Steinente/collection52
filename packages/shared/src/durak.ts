@@ -146,6 +146,26 @@ export function applyDurakAction(state: DurakState, playerId: string, action: Du
   return next;
 }
 
+export function withdrawDurakPlayer(state: DurakState, playerId: string): DurakState {
+  const next = structuredClone(state); const leavingIndex = next.players.findIndex((player) => player.id === playerId);
+  if (leavingIndex < 0) throw new RuleError('player_not_found');
+  const leavingWasDefender = next.defenderId === playerId; const defenderId = next.defenderId;
+  next.players.splice(leavingIndex, 1); next.passedPlayerIds = next.passedPlayerIds.filter((id) => id !== playerId); next.throwOrder = next.throwOrder.filter((id) => id !== playerId);
+  if (next.players.length < 2) throw new RuleError('invalid_player_count');
+  next.table = [];
+  for (const player of next.players) while (player.hand.length < 6 && next.deck.length) player.hand.push(next.deck.shift()!);
+  if (!next.deck.length) for (const player of next.players) if (!player.hand.length) player.eliminated = true;
+  const active = next.players.filter((player) => !player.eliminated);
+  if (active.length <= 1) {
+    next.phase = 'finished'; next.result = active.length ? { draw: false, winners: [active[0]!.id] } : { draw: true, winners: [] }; next.version += 1; return next;
+  }
+  const playerAfterLeaving = next.players[leavingIndex % next.players.length]!;
+  const nextAttacker = leavingWasDefender ? playerAfterLeaving : next.players.find((player) => player.id === defenderId && !player.eliminated) ?? playerAfterLeaving;
+  next.attackerId = nextAttacker.id; next.roundAttackerId = nextAttacker.id; next.defenderId = nextActive(next, nextAttacker.id).id;
+  next.roundAttackLimit = Math.min(6, next.players.find((player) => player.id === next.defenderId)!.hand.length); next.phase = 'attack'; delete next.result; next.version += 1;
+  return next;
+}
+
 export function playerView(state: DurakState, playerId: string) {
   return { ...state, players: state.players.map((p) => p.id === playerId ? p : { ...p, hand: [], handCount: p.hand.length }), deck: [], deckCount: state.deck.length };
 }

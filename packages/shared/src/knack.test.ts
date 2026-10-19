@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyKnackAction, createDeck, createKnackGame, scoreKnackHand, type Card } from './index.js';
+import { applyKnackAction, createDeck, createKnackGame, scoreKnackHand, withdrawKnackPlayer, type Card } from './index.js';
 
 const card = (suit: Card['suit'], rank: Card['rank']): Card => ({ id: `${suit}-${rank}`, suit, rank });
 const people = [{ id: 'a', name: 'Anna' }, { id: 'b', name: 'Ben' }, { id: 'c', name: 'Chris' }];
@@ -66,5 +66,8 @@ describe('knack engine', () => {
     }
     const loser = game.players.find((player) => player.id === loserId)!;
     expect(loser.eliminated).toBe(true); expect(game.phase).toBe('finished'); expect(game.result?.winnerId).toBe('a');
+  });
+  it('treats a withdrawing player as eliminated and advances their turn', () => {
+    const game = createKnackGame('g', people, fixedRandom); const leavingId = game.currentPlayerId; const next = withdrawKnackPlayer(game, leavingId); expect(next.players.map((player) => player.id)).not.toContain(leavingId); expect(next.players).toHaveLength(2); expect(next.currentPlayerId).not.toBe(leavingId); expect(next.phase).toBe('playing');
   });
 });

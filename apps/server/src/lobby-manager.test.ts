@@ -20,6 +20,22 @@ describe('LobbyManager', () => {
     expect(h.event).toHaveBeenCalledTimes(eventCalls);
     manager.stop();
   });
+  it('retains a detached guest and only removes them after a permanent leave', async () => {
+    const h = hooks(); const manager = new LobbyManager(h); const made = await manager.create('Anna', { maxPlayers: 4, deckSize: 36, visibility: 'public' }, 's1'); const joined = await manager.join(made.lobby, 'Ben', undefined, 's2');
+    manager.detach(made.lobby, joined.player.id); expect(made.lobby.players).toHaveLength(2); expect(joined.player.connected).toBe(false); expect(manager.playerForToken(made.lobby, joined.token)?.id).toBe(joined.player.id);
+    manager.leave(made.lobby, joined.player.id); expect(made.lobby.players).toHaveLength(1); expect(h.event).toHaveBeenCalledWith(made.lobby, expect.objectContaining({ type: 'player.left', data: expect.objectContaining({ name: 'Ben' }) })); manager.stop();
+  });
+  it.each([
+    ['durak', 36],
+    ['schwimmen', 32]
+  ] as const)('continues a running %s game after a guest permanently leaves when two players remain', async (gameId, deckSize) => {
+    const manager = new LobbyManager(hooks()); const made = await manager.create('Anna', { gameId, maxPlayers: 4, deckSize, visibility: 'public' }, 's1'); const ben = await manager.join(made.lobby, 'Ben', undefined, 's2'); await manager.join(made.lobby, 'Clara', undefined, 's3'); manager.start(made.lobby, made.player.id);
+    manager.leave(made.lobby, ben.player.id); expect(made.lobby.status).toBe('playing'); expect(made.lobby.game?.players.map((player) => player.id)).not.toContain(ben.player.id); expect(made.lobby.players).toHaveLength(2); manager.stop();
+  });
+  it('ends the current Mau-Mau round when a guest permanently leaves', async () => {
+    const manager = new LobbyManager(hooks()); const made = await manager.create('Anna', { gameId: 'mau-mau', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1'); const ben = await manager.join(made.lobby, 'Ben', undefined, 's2'); await manager.join(made.lobby, 'Clara', undefined, 's3'); manager.start(made.lobby, made.player.id);
+    manager.leave(made.lobby, ben.player.id); expect(made.lobby.status).toBe('waiting'); expect(made.lobby.game).toBeUndefined(); expect(made.lobby.events.at(-1)?.data.gameEffect).toBe('round_cancelled'); manager.stop();
+  });
   it('creates, starts, and privately projects a Knack game', async () => {
     const manager = new LobbyManager(hooks());
     const made = await manager.create('Anna', { gameId: 'schwimmen', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
@@ -29,6 +45,19 @@ describe('LobbyManager', () => {
     const hostView = manager.view(made.lobby, made.player.id).game as { players: Array<{ id: string; hand: unknown[]; handCount?: number }>; center: unknown[] };
     expect(hostView.center).toHaveLength(3); expect(hostView.players.find((player) => player.id === made.player.id)?.hand).toHaveLength(3);
     expect(hostView.players.find((player) => player.id === joined.player.id)?.hand).toHaveLength(0); expect(hostView.players.find((player) => player.id === joined.player.id)?.handCount).toBe(3);
+    manager.close(made.lobby, 'test_finished'); manager.stop();
+  });
+  it('creates, starts, and privately projects a Mau-Mau game', async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create('Anna', { gameId: 'mau-mau', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
+    const joined = await manager.join(made.lobby, 'Ben', undefined, 's2');
+    await manager.update(made.lobby, made.player.id, { mauMauRules: { stackSevens: true, forbidJackOnJack: true, forbidJackAsFinal: false, aceReverses: true } });
+    manager.start(made.lobby, made.player.id);
+    expect(made.lobby.gameId).toBe('mau-mau'); expect(made.lobby.deckSize).toBe(32); expect(made.lobby.mauMauRules.stackSevens).toBe(true);
+    const hostView = manager.view(made.lobby, made.player.id).game as { players: Array<{ id: string; hand: unknown[]; handCount?: number }>; discard: unknown[]; rules: { aceReverses: boolean } };
+    expect(hostView.discard).toHaveLength(1); expect(hostView.players.find((player) => player.id === made.player.id)?.hand).toHaveLength(5);
+    expect(hostView.rules.aceReverses).toBe(true);
+    expect(hostView.players.find((player) => player.id === joined.player.id)?.hand).toHaveLength(0); expect(hostView.players.find((player) => player.id === joined.player.id)?.handCount).toBe(5);
     manager.close(made.lobby, 'test_finished'); manager.stop();
   });
 });
