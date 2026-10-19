@@ -373,11 +373,18 @@ function HandSortControls({ settings, setMode, setDirection }: { settings: HandS
 }
 
 function KnackRoundResultPanel({ game, sendAction }: { game: KnackGameView; sendAction: (action: object) => void }) {
-  const { t } = useTranslation(); const roundResult = game.roundResult ?? game.lastRoundResult; if (!roundResult) return null;
+  const { t } = useTranslation(); const panel = useRef<HTMLElement>(null); const scrolledResult = useRef(''); const roundResult = game.roundResult ?? game.lastRoundResult;
+  useEffect(() => {
+    if (!game.roundResult) return;
+    const resultKey = `${game.id}:${game.roundNumber}:${game.roundResult.reason}`; if (scrolledResult.current === resultKey) return; scrolledResult.current = resultKey;
+    const frame = window.requestAnimationFrame(() => panel.current?.scrollIntoView({ behavior:document.documentElement.classList.contains('reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'center' }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [game.id, game.roundNumber, game.roundResult]);
+  if (!roundResult) return null;
   const playerName = (id:string) => game.players.find((player) => player.id === id)?.name ?? '';
   const scoreText = (score:KnackRoundResult['scores'][number]) => score.label === 'fire' ? t('knackFire') : score.label === 'thirty-one' ? t('knackThirtyOne') : t('knackPoints', { score:String(score.score).replace('.', ',') });
   const title = game.phase === 'finished' ? t('knackGameOver') : t(game.roundResult ? 'knackRoundResult' : 'knackLastRoundResult');
-  return <section className="result panel knack-round-result" role="status"><div><p className="eyebrow">{t(`knackReason_${roundResult.reason}`)}</p><h2>{title}</h2></div><ol>{[...roundResult.scores].sort((left,right) => right.score-left.score).map((score) => <li key={score.playerId} className={roundResult.loserIds.includes(score.playerId) ? 'lost-life' : ''}><strong>{playerName(score.playerId)}</strong><span>{scoreText(score)}</span>{roundResult.loserIds.includes(score.playerId) && <small>{t('knackLifeLost')}</small>}</li>)}</ol>{game.phase === 'round-ended' && game.roundResult && <button className="primary" onClick={() => sendAction({ type:'schwimmen:next-round' })}>{t('knackNextRound')}</button>}{game.phase === 'finished' && <p className="knack-winner">{t('knackWinner', { name:playerName(game.result?.winnerId ?? '') })}</p>}</section>;
+  return <section ref={panel} className="result panel knack-round-result" role="status"><div><p className="eyebrow">{t(`knackReason_${roundResult.reason}`)}</p><h2>{title}</h2></div><ol>{[...roundResult.scores].sort((left,right) => right.score-left.score).map((score) => <li key={score.playerId} className={roundResult.loserIds.includes(score.playerId) ? 'lost-life' : ''}><strong>{playerName(score.playerId)}</strong><span>{scoreText(score)}</span>{roundResult.loserIds.includes(score.playerId) && <small>{t('knackLifeLost')}</small>}</li>)}</ol>{game.phase === 'round-ended' && game.roundResult && <button className="primary" onClick={() => sendAction({ type:'schwimmen:next-round' })}>{t('knackNextRound')}</button>}{game.phase === 'finished' && <p className="knack-winner">{t('knackWinner', { name:playerName(game.result?.winnerId ?? '') })}</p>}</section>;
 }
 
 function GameBoard({ game, me, playerId, selected, setSelected, target, setTarget, sendAction }: { game: GameView; me: GameView['players'][number] | undefined; playerId: string; selected: string[]; setSelected: (v: string[]) => void; target: string; setTarget: (v: string) => void; sendAction: (a: object) => void }) {
