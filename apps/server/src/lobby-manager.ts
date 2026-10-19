@@ -105,6 +105,7 @@ export class LobbyManager {
   action(lobby: Lobby, playerId: string, action: GameAction, expectedVersion?: number) {
     if (!lobby.game) throw new Error('game_not_started'); if (expectedVersion !== undefined && expectedVersion !== lobby.game.version) throw new Error('stale_action');
     const handsBefore = new Map(lobby.game.players.map((player) => [player.id, new Set(player.hand.map((card) => card.id))]));
+    const knackCenterBefore = lobby.gameId === 'schwimmen' ? (lobby.game as KnackState).center.map((card) => card.id) : [];
     const tableCardsBefore = lobby.gameId === 'durak' ? new Set((lobby.game as DurakState).table.flatMap((pair) => pair.defense ? [pair.attack.id, pair.defense.id] : [pair.attack.id])) : new Set<string>();
     if (lobby.gameId === 'schwimmen') {
       if (!action.type.startsWith('schwimmen:')) throw new Error('invalid_action');
@@ -123,6 +124,7 @@ export class LobbyManager {
     const data = action.type === 'attack' ? { cardIds: action.cardIds }
       : action.type === 'defend' ? { cardId: action.cardId, attackCardId: action.attackCardId }
       : action.type === 'schwimmen:swap-one' ? { handCardId: action.handCardId, centerCardId: action.centerCardId }
+      : action.type === 'schwimmen:swap-all' ? { handCardIds: [...(handsBefore.get(playerId) ?? [])], centerCardIds: knackCenterBefore }
       : action.type === 'mau-mau:play' ? { cardId: action.cardId, ...(action.chosenSuit ? { chosenSuit: action.chosenSuit } : {}) }
       : action.type === 'romme:draw' ? { source: action.source }
       : action.type === 'romme:meld' ? { groupCount: action.groups.length, cardIds: action.groups.flatMap((group) => group.cardIds) }

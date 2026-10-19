@@ -47,6 +47,16 @@ describe('LobbyManager', () => {
     expect(hostView.players.find((player) => player.id === joined.player.id)?.hand).toHaveLength(0); expect(hostView.players.find((player) => player.id === joined.player.id)?.handCount).toBe(3);
     manager.close(made.lobby, 'test_finished'); manager.stop();
   });
+  it('restarts a finished Knack round as a clean first round', async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create('Anna', { gameId: 'schwimmen', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
+    await manager.join(made.lobby, 'Ben', undefined, 's2'); manager.start(made.lobby, made.player.id);
+    const previousGame = made.lobby.game!; Object.assign(previousGame, { phase:'round-ended', roundNumber:4, roundResult:{ reason:'knock', scores:[], loserIds:[] }, lastRoundResult:{ reason:'knock', scores:[], loserIds:[] } });
+    manager.restart(made.lobby, made.player.id);
+    expect(made.lobby.game).not.toBe(previousGame); expect(made.lobby.game).toMatchObject({ phase:'playing', roundNumber:1 });
+    expect(made.lobby.game).not.toHaveProperty('roundResult'); expect(made.lobby.game).not.toHaveProperty('lastRoundResult');
+    manager.close(made.lobby, 'test_finished'); manager.stop();
+  });
   it('creates, starts, and privately projects a Mau-Mau game', async () => {
     const manager = new LobbyManager(hooks());
     const made = await manager.create('Anna', { gameId: 'mau-mau', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');

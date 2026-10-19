@@ -37,6 +37,23 @@ describe('knack engine', () => {
     game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:pass' }, fixedRandom);
     expect(game.phase).toBe('round-ended'); expect(game.roundResult?.reason).toBe('knock');
   });
+  it('keeps the previous round result after dealing the next round', () => {
+    let game = createKnackGame('g', people, fixedRandom);
+    game = applyKnackAction(game, game.currentPlayerId, { type:'schwimmen:knock' }, fixedRandom);
+    game = applyKnackAction(game, game.currentPlayerId, { type:'schwimmen:pass' }, fixedRandom);
+    game = applyKnackAction(game, game.currentPlayerId, { type:'schwimmen:pass' }, fixedRandom);
+    const previousResult = game.roundResult;
+    game = applyKnackAction(game, game.currentPlayerId, { type:'schwimmen:next-round' }, fixedRandom);
+    expect(game.phase).toBe('playing'); expect(game.roundResult).toBeUndefined(); expect(game.lastRoundResult).toEqual(previousResult);
+  });
+  it('never exposes the next-round action for a freshly dealt round', () => {
+    const game = createKnackGame('g', people, fixedRandom);
+    expect(game.roundNumber).toBe(1); expect(game.phase).toBe('playing'); expect(game.roundResult).toBeUndefined(); expect(game.lastRoundResult).toBeUndefined();
+  });
+  it('rejects a next-round action without a completed round result', () => {
+    const game = createKnackGame('g', people, fixedRandom); game.phase = 'round-ended';
+    expect(() => applyKnackAction(game, game.currentPlayerId, { type:'schwimmen:next-round' }, fixedRandom)).toThrow('round_not_ended');
+  });
   it('refreshes the center after everybody passes', () => {
     let game = createKnackGame('g', people, fixedRandom); const oldCenter = game.center.map((entry) => entry.id);
     for (let index = 0; index < people.length; index += 1) game = applyKnackAction(game, game.currentPlayerId, { type: 'schwimmen:pass' }, fixedRandom);

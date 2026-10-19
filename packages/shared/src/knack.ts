@@ -14,7 +14,7 @@ export type KnackState = {
   id: string; players: KnackPlayer[]; center: Card[]; deck: Card[]; discard: Card[];
   dealerId: string; currentPlayerId: string; closingPlayerId?: string; finalTurnsLeft: number;
   consecutivePasses: number; roundNumber: number; phase: KnackPhase; version: number;
-  roundResult?: KnackRoundResult; result?: KnackResult;
+  roundResult?: KnackRoundResult; lastRoundResult?: KnackRoundResult; result?: KnackResult;
 };
 export type KnackAction =
   | { type: 'schwimmen:swap-one'; handCardId: string; centerCardId: string }
@@ -67,6 +67,7 @@ function finishRound(state: KnackState, reason: KnackRoundResult['reason'], spec
     else { player.lives = 0; player.swimming = true; }
   }
   state.roundResult = { reason, scores, loserIds };
+  state.lastRoundResult = structuredClone(state.roundResult);
   delete state.closingPlayerId; state.finalTurnsLeft = 0; state.consecutivePasses = 0;
   const remaining = activePlayers(state);
   if (remaining.length === 1) { state.phase = 'finished'; state.result = { winnerId: remaining[0]!.id }; }
@@ -81,8 +82,6 @@ function dealRound(state: KnackState, randomInt: (max: number) => number): void 
   state.dealerId = nextActive(state, state.dealerId).id; state.currentPlayerId = nextActive(state, state.dealerId).id;
   state.phase = 'playing'; delete state.roundResult; delete state.closingPlayerId;
   state.finalTurnsLeft = 0; state.consecutivePasses = 0;
-  const immediate = active.map(scoreEntry).find((entry) => entry.label === 'fire' || entry.label === 'thirty-one');
-  if (immediate?.label === 'fire' || immediate?.label === 'thirty-one') finishRound(state, immediate.label, immediate.playerId);
 }
 
 export function createKnackGame(
@@ -114,7 +113,7 @@ export function applyKnackAction(state: KnackState, playerId: string, action: Kn
   if (!player || player.eliminated) throw new RuleError('not_active');
   if (!player.connected) throw new RuleError('player_offline');
   if (action.type === 'schwimmen:next-round') {
-    if (next.phase !== 'round-ended') throw new RuleError('round_not_ended');
+    if (next.phase !== 'round-ended' || !next.roundResult) throw new RuleError('round_not_ended');
     dealRound(next, randomInt); next.version += 1; return next;
   }
   if (next.phase === 'finished') throw new RuleError('game_finished');
