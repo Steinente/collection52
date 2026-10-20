@@ -2,21 +2,31 @@ import { ranks52, suits, type Card, type Rank, shuffle } from './cards.js';
 import { RuleError } from './durak.js';
 
 export type RommeCard = Card | { id: string; suit: 'joker'; rank: 'joker' };
-export type RommeRules = { openingPoints: 30 | 40; requireDiscardUse: boolean };
-export const defaultRommeRules: RommeRules = { openingPoints: 40, requireDiscardUse: false };
+export type RommeVariant = 'classic' | 'gin';
+export type RommeRules = { variant: RommeVariant; openingPoints: 30 | 40; requireDiscardUse: boolean; ginTargetScore: number };
+export const defaultRommeRules: RommeRules = { variant: 'classic', openingPoints: 40, requireDiscardUse: false, ginTargetScore: 100 };
 export type RommeMeld = { id: string; ownerId: string; kind: 'set' | 'run'; cards: RommeCard[]; points: number };
 export type RommePlayer = { id: string; name: string; connected: boolean; hand: RommeCard[]; opened: boolean };
+export type GinHandAnalysis = { melds: Array<{ kind: 'set' | 'run'; cards: RommeCard[] }>; deadwood: RommeCard[]; deadwoodPoints: number };
+export type GinRoundResult = {
+  reason: 'knock' | 'gin' | 'undercut' | 'stock'; winnerId?: string; knockerId?: string; pointsAwarded: number;
+  hands: Record<string, RommeCard[]>; analyses: Record<string, GinHandAnalysis>; scores: Record<string, number>;
+};
 export type RommeState = {
   id: string; players: RommePlayer[]; deck: RommeCard[]; discard: RommeCard[]; melds: RommeMeld[];
   currentPlayerId: string; hasDrawn: boolean; drawnDiscardId?: string; rules: RommeRules;
-  phase: 'playing' | 'finished'; version: number; result?: { winnerId: string; handPoints: Record<string, number> };
+  phase: 'playing' | 'round-ended' | 'finished'; version: number; result?: { winnerId: string; handPoints: Record<string, number> };
+  roundNumber?: number; dealerId?: string; scores?: Record<string, number>; ginOpeningPasses?: number; ginStockEnding?: boolean; roundResult?: GinRoundResult;
 };
 export type RommeAction =
   | { type: 'romme:draw'; source: 'stock' | 'discard' }
   | { type: 'romme:meld'; groups: Array<{ cardIds: string[] }> }
   | { type: 'romme:lay-off'; meldId: string; cardIds: string[] }
   | { type: 'romme:replace-joker'; meldId: string; jokerId: string; cardIds: string[] }
-  | { type: 'romme:discard'; cardId: string };
+  | { type: 'romme:discard'; cardId: string }
+  | { type: 'romme:knock'; cardId: string }
+  | { type: 'romme:pass-opening' }
+  | { type: 'romme:next-round' };
 
 const rankNumber = (rank: Rank) => ranks52.indexOf(rank) + 2;
 const cardPoint = (card: RommeCard) => card.rank === 'joker' ? 20 : card.rank === 'ace' ? 11 : ['jack', 'queen', 'king'].includes(card.rank) ? 10 : Number(card.rank);
@@ -27,6 +37,66 @@ export function createRommeDeck(): RommeCard[] {
   for (let copy = 1; copy <= 2; copy += 1) for (const suit of suits) for (const rank of ranks52) cards.push({ id: `${suit}-${rank}-${copy}`, suit, rank });
   for (let index = 1; index <= 6; index += 1) cards.push({ id: `joker-${index}`, suit: 'joker', rank: 'joker' });
   return cards;
+}
+
+export function createGinDeck(): RommeCard[] {
+  return suits.flatMap((suit) => ranks52.map((rank) => ({ id: `${suit}-${rank}-1`, suit, rank })));
+}
+
+const ginRankValue = (card: RommeCard) => card.rank === 'ace' ? 1 : ['jack', 'queen', 'king'].includes(card.rank) ? 10 : card.rank === 'joker' ? 0 : Number(card.rank);
+const ginSequenceValue = (card: RommeCard) => card.rank === 'ace' ? 1 : card.rank === 'joker' ? 0 : rankNumber(card.rank);
+
+function ginMeldKind(cards: RommeCard[]): 'set' | 'run' | undefined {
+  if (cards.length < 3 || cards.some((card) => card.rank === 'joker')) return undefined;
+  if (cards.length <= 4 && new Set(cards.map((card) => card.rank)).size === 1 && new Set(cards.map((card) => card.suit)).size === cards.length) return 'set';
+  if (new Set(cards.map((card) => card.suit)).size !== 1) return undefined;
+  const values = cards.map(ginSequenceValue).sort((a, b) => a - b);
+  return values.every((value, index) => index === 0 || value === values[index - 1]! + 1) ? 'run' : undefined;
+}
+
+export function analyzeGinHand(cards: RommeCard[]): GinHandAnalysis {
+  const naturalCards = cards.filter((card) => card.rank !== 'joker');
+  const meldOptions = ginMeldOptions(naturalCards);
+  const memo = new Map<number, { coveredPoints: number; melds: typeof meldOptions }>();
+  const solve = (used: number): { coveredPoints: number; melds: typeof meldOptions } => {
+    const cached = memo.get(used); if (cached) return cached;
+    let best = { coveredPoints: 0, melds: [] as typeof meldOptions };
+    for (const meld of meldOptions) if ((meld.mask & used) === 0) {
+      const tail = solve(used | meld.mask); const points = meld.cards.reduce((sum, card) => sum + ginRankValue(card), 0) + tail.coveredPoints;
+      if (points > best.coveredPoints) best = { coveredPoints: points, melds: [meld, ...tail.melds] };
+    }
+    memo.set(used, best); return best;
+  };
+  const best = solve(0); const meldIds = new Set(best.melds.flatMap((meld) => meld.cards.map((card) => card.id)));
+  const deadwood = cards.filter((card) => !meldIds.has(card.id));
+  return { melds: best.melds.map(({ kind, cards: meldCards }) => ({ kind, cards: orderGinMeld(kind, meldCards) })), deadwood, deadwoodPoints: deadwood.reduce((sum, card) => sum + ginRankValue(card), 0) };
+}
+
+function ginMeldOptions(naturalCards: RommeCard[]) {
+  const meldOptions: Array<{ mask: number; kind: 'set' | 'run'; cards: RommeCard[] }> = [];
+  const limit = 1 << naturalCards.length;
+  for (let mask = 1; mask < limit; mask += 1) {
+    if (mask.toString(2).replaceAll('0', '').length < 3) continue;
+    const subset = naturalCards.filter((_, index) => (mask & (1 << index)) !== 0);
+    const kind = ginMeldKind(subset); if (kind) meldOptions.push({ mask, kind, cards: subset });
+  }
+  return meldOptions;
+}
+
+function orderGinMeld(kind: 'set' | 'run', cards: RommeCard[]) { return kind === 'run' ? [...cards].sort((a, b) => ginSequenceValue(a) - ginSequenceValue(b)) : cards; }
+
+function ginOpponentAnalysis(cards: RommeCard[], knocker: GinHandAnalysis): GinHandAnalysis {
+  let best: GinHandAnalysis = analyzeGinHand(cards); const targetMelds = knocker.melds.map((meld) => ({ ...meld, cards: [...meld.cards] }));
+  const layOff = (remaining: RommeCard[], melds: typeof targetMelds, kept: RommeCard[], ownMelds: GinHandAnalysis['melds']) => {
+    if (!remaining.length) { const points = kept.reduce((sum, card) => sum + ginRankValue(card), 0); if (points < best.deadwoodPoints) best = { melds: ownMelds, deadwood:kept, deadwoodPoints:points }; return; }
+    const [card, ...rest] = remaining; layOff(rest, melds, [...kept, card!], ownMelds);
+    melds.forEach((meld, index) => { const combined = [...meld.cards, card!]; if (ginMeldKind(combined) !== meld.kind) return; const next = melds.map((item, itemIndex) => itemIndex === index ? { ...item, cards: combined } : item); layOff(rest, next, kept, ownMelds); });
+  };
+  const options = ginMeldOptions(cards); const chooseOwnMelds = (start:number, used:number, ownMelds:GinHandAnalysis['melds']) => {
+    const remaining = cards.filter((_,index) => (used & (1 << index)) === 0); layOff(remaining,targetMelds,[],ownMelds);
+    for (let index=start; index<options.length; index+=1) { const option=options[index]!; if ((option.mask & used) !== 0) continue; chooseOwnMelds(index+1,used|option.mask,[...ownMelds,{kind:option.kind,cards:orderGinMeld(option.kind,option.cards)}]); }
+  };
+  chooseOwnMelds(0,0,[]); return best;
 }
 
 function setPoints(cards: RommeCard[]) {
@@ -113,6 +183,13 @@ function drawStock(state: RommeState, randomInt: (max: number) => number) {
 }
 
 export function createRommeGame(id: string, people: Array<{ id: string; name: string; connected?: boolean }>, randomInt: (max: number) => number, rules: RommeRules = defaultRommeRules): RommeState {
+  rules = { ...defaultRommeRules, ...rules };
+  if (rules.variant === 'gin') {
+    if (people.length !== 2) throw new RuleError('gin_requires_two_players');
+    const players: RommePlayer[] = people.map((person) => ({ ...person, connected: person.connected ?? true, hand: [], opened: false }));
+    const dealerId = players[randomInt(players.length)]!.id;
+    return dealGinRound({ id, players, deck: [], discard: [], melds: [], currentPlayerId: '', hasDrawn: false, rules, phase: 'playing', version: 0, roundNumber: 0, dealerId, scores: Object.fromEntries(players.map((player) => [player.id, 0])) }, randomInt, false);
+  }
   if (people.length < 2 || people.length > 6) throw new RuleError('invalid_player_count');
   const deck = shuffle(createRommeDeck(), randomInt);
   const players: RommePlayer[] = people.map((person) => ({ ...person, connected: person.connected ?? true, hand: [], opened: false }));
@@ -121,10 +198,76 @@ export function createRommeGame(id: string, people: Array<{ id: string; name: st
   return { id, players, deck, discard: [opening], melds: [], currentPlayerId: players[randomInt(players.length)]!.id, hasDrawn: false, rules: { ...rules }, phase: 'playing', version: 1 };
 }
 
+function dealGinRound(state: RommeState, randomInt: (max: number) => number, alternateDealer = true) {
+  if (alternateDealer) state.dealerId = state.players.find((player) => player.id !== state.dealerId)!.id;
+  const deck = shuffle(createGinDeck(), randomInt); state.players.forEach((player) => { player.hand = []; player.opened = false; });
+  for (let count = 0; count < 10; count += 1) for (const player of state.players) player.hand.push(deck.shift()!);
+  state.deck = deck; state.discard = [state.deck.shift()!]; state.melds = []; state.currentPlayerId = state.players.find((player) => player.id !== state.dealerId)!.id;
+  state.hasDrawn = false; state.ginOpeningPasses = 0; delete state.ginStockEnding; delete state.roundResult; delete state.drawnDiscardId;
+  state.phase = 'playing'; state.roundNumber = (state.roundNumber ?? 0) + 1; state.version += 1; return state;
+}
+
+function finishGinRound(state: RommeState, result: Omit<GinRoundResult, 'hands' | 'scores'>) {
+  const hands = Object.fromEntries(state.players.map((player) => [player.id, [...player.hand]]));
+  const scores = state.scores ?? Object.fromEntries(state.players.map((player) => [player.id, 0]));
+  if (result.winnerId) scores[result.winnerId] = (scores[result.winnerId] ?? 0) + result.pointsAwarded;
+  state.scores = scores; state.roundResult = { ...result, hands, scores: { ...scores } }; state.hasDrawn = false; delete state.ginStockEnding; delete state.ginOpeningPasses;
+  const gameWinner = state.players.find((player) => (scores[player.id] ?? 0) >= state.rules.ginTargetScore);
+  if (gameWinner) { state.phase = 'finished'; state.result = { winnerId: gameWinner.id, handPoints: { ...scores } }; }
+  else state.phase = 'round-ended';
+  state.version += 1; return state;
+}
+
+function applyGinAction(next: RommeState, player: RommePlayer, action: RommeAction, randomInt: (max: number) => number) {
+  if (action.type === 'romme:next-round') {
+    if (next.phase !== 'round-ended') throw new RuleError('round_not_finished');
+    const keepDealer = next.roundResult?.reason === 'stock'; return dealGinRound(next, randomInt, !keepDealer);
+  }
+  if (next.phase !== 'playing') throw new RuleError('round_finished');
+  if (next.currentPlayerId !== player.id) throw new RuleError('not_your_turn');
+  if (action.type === 'romme:pass-opening') {
+    if (next.hasDrawn || next.ginOpeningPasses === undefined || next.ginOpeningPasses >= 2) throw new RuleError('cannot_pass');
+    next.ginOpeningPasses += 1; next.currentPlayerId = next.ginOpeningPasses === 1 ? next.dealerId! : next.players.find((item) => item.id !== next.dealerId)!.id; next.version += 1; return next;
+  }
+  if (action.type === 'romme:draw') {
+    if (next.hasDrawn) throw new RuleError('already_drew');
+    if (next.ginOpeningPasses !== undefined && next.ginOpeningPasses < 2 && action.source !== 'discard') throw new RuleError('opening_discard_or_pass');
+    if (next.ginOpeningPasses === 2 && action.source !== 'stock') throw new RuleError('opening_stock_required');
+    if (action.source === 'stock' && next.deck.length <= 2) throw new RuleError('deck_empty');
+    const card = action.source === 'discard' ? next.discard.pop() : next.deck.shift(); if (!card) throw new RuleError('deck_empty');
+    player.hand.push(card); next.hasDrawn = true; if (action.source === 'discard') next.drawnDiscardId = card.id;
+    if (action.source === 'stock' && next.deck.length === 2) next.ginStockEnding = true;
+    delete next.ginOpeningPasses; next.version += 1; return next;
+  }
+  if (!next.hasDrawn) throw new RuleError('must_draw_first');
+  if (action.type !== 'romme:discard' && action.type !== 'romme:knock') throw new RuleError('invalid_action');
+  const cardIndex = player.hand.findIndex((card) => card.id === action.cardId); if (cardIndex < 0) throw new RuleError('card_not_in_hand');
+  if (next.drawnDiscardId === action.cardId) throw new RuleError('gin_cannot_rediscard');
+  const candidateHand = player.hand.filter((card) => card.id !== action.cardId); const analysis = analyzeGinHand(candidateHand);
+  if (action.type === 'romme:knock' && analysis.deadwoodPoints > 10) throw new RuleError('gin_knock_too_high');
+  const [discarded] = player.hand.splice(cardIndex, 1); next.discard.push(discarded!); delete next.drawnDiscardId; next.hasDrawn = false;
+  if (action.type === 'romme:knock') {
+    const opponent = next.players.find((item) => item.id !== player.id)!; const gin = analysis.deadwoodPoints === 0;
+    const opponentAnalysis = gin ? analyzeGinHand(opponent.hand) : ginOpponentAnalysis(opponent.hand, analysis);
+    const undercut = !gin && opponentAnalysis.deadwoodPoints <= analysis.deadwoodPoints;
+    const winnerId = undercut ? opponent.id : player.id;
+    const pointsAwarded = undercut ? analysis.deadwoodPoints - opponentAnalysis.deadwoodPoints + 20 + 10 : opponentAnalysis.deadwoodPoints - analysis.deadwoodPoints + (gin ? 25 : 0) + 10;
+    const analyses = { [player.id]: analysis, [opponent.id]: opponentAnalysis };
+    return finishGinRound(next, { reason: gin ? 'gin' : undercut ? 'undercut' : 'knock', winnerId, knockerId: player.id, pointsAwarded, analyses });
+  }
+  if (next.ginStockEnding) {
+    const analyses = Object.fromEntries(next.players.map((item) => [item.id, analyzeGinHand(item.hand)]));
+    return finishGinRound(next, { reason: 'stock', pointsAwarded: 0, analyses });
+  }
+  next.currentPlayerId = next.players.find((item) => item.id !== player.id)!.id; next.version += 1; return next;
+}
+
 export function applyRommeAction(state: RommeState, playerId: string, action: RommeAction, randomInt: (max: number) => number): RommeState {
   const next = structuredClone(state); const player = next.players.find((item) => item.id === playerId);
   if (!player) throw new RuleError('not_active'); if (!player.connected) throw new RuleError('player_offline');
-  if (next.phase === 'finished') throw new RuleError('game_finished'); if (next.currentPlayerId !== playerId) throw new RuleError('not_your_turn');
+  if (next.phase === 'finished') throw new RuleError('game_finished');
+  if (next.rules.variant === 'gin') return applyGinAction(next, player, action, randomInt);
+  if (next.phase !== 'playing') throw new RuleError('game_finished'); if (next.currentPlayerId !== playerId) throw new RuleError('not_your_turn');
   if (action.type === 'romme:draw') {
     if (next.hasDrawn) throw new RuleError('already_drew');
     const card = action.source === 'discard' ? next.discard.pop() : drawStock(next, randomInt); if (!card) throw new RuleError('deck_empty');
@@ -175,6 +318,7 @@ export function applyRommeAction(state: RommeState, playerId: string, action: Ro
     if (!player.hand.length) { next.phase = 'finished'; next.result = { winnerId: playerId, handPoints: Object.fromEntries(next.players.map((item) => [item.id, rommeHandPoints(item.hand)])) }; }
     ensureUniqueMeldIds(next); next.version += 1; return next;
   }
+  if (action.type !== 'romme:discard') throw new RuleError('invalid_action');
   if (next.rules.requireDiscardUse && next.drawnDiscardId) throw new RuleError('discard_must_be_used');
   const cardIndex = player.hand.findIndex((card) => card.id === action.cardId); if (cardIndex < 0) throw new RuleError('card_not_in_hand');
   const [card] = player.hand.splice(cardIndex, 1); next.discard.push(card!); delete next.drawnDiscardId; next.hasDrawn = false;
@@ -184,7 +328,8 @@ export function applyRommeAction(state: RommeState, playerId: string, action: Ro
 }
 
 export function rommePlayerView(state: RommeState, playerId: string) {
-  return { ...state, players: state.players.map((player) => player.id === playerId ? player : { ...player, hand: [], handCount: player.hand.length }), deck: [], deckCount: state.deck.length, discard: state.discard.slice(-1), discardCount: state.discard.length };
+  const revealGinHands = state.rules.variant === 'gin' && state.phase !== 'playing';
+  return { ...state, players: state.players.map((player) => player.id === playerId || revealGinHands ? player : { ...player, hand: [], handCount: player.hand.length }), deck: [], deckCount: state.deck.length, discard: state.discard.slice(-1), discardCount: state.discard.length };
 }
 
 export function withdrawRommePlayer(state: RommeState, playerId: string): RommeState {

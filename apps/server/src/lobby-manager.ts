@@ -48,7 +48,8 @@ export class LobbyManager {
     const token = this.token(); const id = randomUUID(); const now = Date.now();
     const player: LobbyPlayer = { id: randomUUID(), name, tokenHash: hashToken(token), connected: true, socketId, joinedAt: now, isHost: true };
     const gameId = settings.gameId ?? 'durak'; const deckSize = gameId === 'durak' ? settings.deckSize : gameId === 'romme' ? 52 : 32;
-    const lobby: Lobby = { id, code, gameId, status: 'waiting', visibility: settings.visibility, maxPlayers: settings.maxPlayers, deckSize, mauMauRules: { ...defaultMauMauRules, ...settings.mauMauRules }, rommeRules: { ...defaultRommeRules, ...settings.rommeRules }, hostId: player.id, players: [player], gameNumber: 0, activityAt: now, warningSent: false, sequence: 0, events: [], closed: false };
+    const rommeRules = { ...defaultRommeRules, ...settings.rommeRules };
+    const lobby: Lobby = { id, code, gameId, status: 'waiting', visibility: settings.visibility, maxPlayers: gameId === 'romme' && rommeRules.variant === 'gin' ? 2 : settings.maxPlayers, deckSize, mauMauRules: { ...defaultMauMauRules, ...settings.mauMauRules }, rommeRules, hostId: player.id, players: [player], gameNumber: 0, activityAt: now, warningSent: false, sequence: 0, events: [], closed: false };
     if (settings.password) { const result = await this.hashPassword(settings.password); lobby.passwordHash = result.hash; lobby.passwordSalt = result.salt; }
     this.event(lobby, 'lobby.created', player.id); this.lobbies.set(code, lobby); this.hooks.listChanged();
     return { lobby, player, token };
@@ -77,6 +78,7 @@ export class LobbyManager {
   start(lobby: Lobby, playerId: string) {
     if (lobby.hostId !== playerId) throw new Error('host_only'); if (lobby.status !== 'waiting') throw new Error('game_already_started');
     if (lobby.players.filter((p) => p.connected).length < 2) throw new Error('not_enough_players'); if (lobby.players.some((p) => !p.connected)) throw new Error('player_offline');
+    if (lobby.gameId === 'romme' && lobby.rommeRules.variant === 'gin' && lobby.players.length !== 2) throw new Error('gin_requires_two_players');
     lobby.gameNumber += 1; lobby.game = lobby.gameId === 'schwimmen'
       ? createKnackGame(`${lobby.id}:${lobby.gameNumber}`, lobby.players, randomInt)
       : lobby.gameId === 'mau-mau'
@@ -88,10 +90,14 @@ export class LobbyManager {
   }
   async update(lobby: Lobby, playerId: string, settings: { maxPlayers?: number | undefined; deckSize?: 36 | 52 | undefined; visibility?: 'public' | 'private' | undefined; password?: string | undefined; mauMauRules?: MauMauRules | undefined; rommeRules?: RommeRules | undefined }) {
     if (lobby.hostId !== playerId) throw new Error('host_only'); if (lobby.status !== 'waiting') throw new Error('game_already_started');
+    if (settings.rommeRules?.variant === 'gin' && lobby.gameId === 'romme' && lobby.players.length > 2) throw new Error('gin_requires_two_players');
     if (settings.maxPlayers !== undefined) { if (settings.maxPlayers < lobby.players.length) throw new Error('player_limit_too_low'); lobby.maxPlayers = settings.maxPlayers; }
     if (settings.deckSize !== undefined && lobby.gameId === 'durak') lobby.deckSize = settings.deckSize; if (settings.visibility !== undefined) lobby.visibility = settings.visibility;
     if (settings.mauMauRules !== undefined && lobby.gameId === 'mau-mau') lobby.mauMauRules = { ...settings.mauMauRules };
-    if (settings.rommeRules !== undefined && lobby.gameId === 'romme') lobby.rommeRules = { ...settings.rommeRules };
+    if (settings.rommeRules !== undefined && lobby.gameId === 'romme') {
+      lobby.rommeRules = { ...defaultRommeRules, ...settings.rommeRules };
+      if (lobby.rommeRules.variant === 'gin') lobby.maxPlayers = 2;
+    }
     if (settings.password !== undefined) {
       if (settings.password) { const result = await this.hashPassword(settings.password); lobby.passwordHash = result.hash; lobby.passwordSalt = result.salt; }
       else { delete lobby.passwordHash; delete lobby.passwordSalt; }
@@ -131,11 +137,12 @@ export class LobbyManager {
       : action.type === 'romme:lay-off' ? { meldId: action.meldId, cardIds: action.cardIds }
       : action.type === 'romme:replace-joker' ? { meldId: action.meldId, jokerId: action.jokerId, cardIds: action.cardIds }
       : action.type === 'romme:discard' ? { cardId: action.cardId }
+      : action.type === 'romme:knock' ? { cardId: action.cardId }
       : {};
     this.event(lobby, `game.${action.type.replace(':', '.')}`, playerId, data);
-    const recordsPrivateDraws = lobby.gameId === 'durak' || action.type === 'mau-mau:draw' || action.type === 'romme:draw' || action.type === 'schwimmen:next-round';
+    const recordsPrivateDraws = lobby.gameId === 'durak' || action.type === 'mau-mau:draw' || action.type === 'romme:draw' || action.type === 'romme:next-round' || action.type === 'schwimmen:next-round';
     if (recordsPrivateDraws) for (const player of lobby.game.players) {
-      const cardIds = action.type === 'schwimmen:next-round'
+      const cardIds = action.type === 'schwimmen:next-round' || action.type === 'romme:next-round'
         ? player.hand.map((card) => card.id)
         : player.hand.filter((card) => !handsBefore.get(player.id)?.has(card.id) && !tableCardsBefore.has(card.id)).map((card) => card.id);
       if (cardIds.length) this.event(lobby, 'game.cards.drawn', player.id, { cardIds }, 'private', player.id);

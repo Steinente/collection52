@@ -4,7 +4,7 @@ export const usernameSchema = z.string().min(1).max(16).regex(/^[\p{L}\p{N}_-]+$
 export const lobbyCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z2-9]{8}$/);
 export const gameIdSchema = z.enum(['durak', 'schwimmen', 'mau-mau', 'romme']);
 export const mauMauRulesSchema = z.object({ stackSevens: z.boolean(), forbidJackOnJack: z.boolean(), forbidJackAsFinal: z.boolean(), aceReverses: z.boolean() });
-export const rommeRulesSchema = z.object({ openingPoints: z.union([z.literal(30), z.literal(40)]), requireDiscardUse: z.boolean() });
+export const rommeRulesSchema = z.object({ variant: z.enum(['classic', 'gin']).default('classic'), openingPoints: z.union([z.literal(30), z.literal(40)]), requireDiscardUse: z.boolean(), ginTargetScore: z.number().int().min(10).max(500).default(100) });
 export const lobbySettingsSchema = z.object({
   gameId: gameIdSchema.default('durak'), maxPlayers: z.number().int().min(2).max(6), deckSize: z.union([z.literal(32), z.literal(36), z.literal(52)]),
   visibility: z.enum(['public', 'private']), password: z.string().max(72).optional(), mauMauRules: mauMauRulesSchema.optional(), rommeRules: rommeRulesSchema.optional()
@@ -30,7 +30,10 @@ export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('romme:meld'), groups: z.array(z.object({ cardIds: z.array(z.string().min(1)).min(3).max(13) })).min(1).max(5) }),
   z.object({ type: z.literal('romme:lay-off'), meldId: z.string().min(1), cardIds: z.array(z.string().min(1)).min(1).max(10) }),
   z.object({ type: z.literal('romme:replace-joker'), meldId: z.string().min(1), jokerId: z.string().min(1), cardIds: z.array(z.string().min(1)).min(3).max(13) }),
-  z.object({ type: z.literal('romme:discard'), cardId: z.string().min(1) })
+  z.object({ type: z.literal('romme:discard'), cardId: z.string().min(1) }),
+  z.object({ type: z.literal('romme:knock'), cardId: z.string().min(1) }),
+  z.object({ type: z.literal('romme:pass-opening') }),
+  z.object({ type: z.literal('romme:next-round') })
 ]);
 
 export type GameId = z.infer<typeof gameIdSchema>;

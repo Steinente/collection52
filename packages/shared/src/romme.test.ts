@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyRommeAction, createRommeDeck, createRommeGame, detectRommeMeld, isPotentialRommeMeld, isValidRommeMeld, rommeMeldPoints, type RommeCard, type RommeState } from './romme.js';
+import { analyzeGinHand, applyRommeAction, createGinDeck, createRommeDeck, createRommeGame, detectRommeMeld, isPotentialRommeMeld, isValidRommeMeld, rommeMeldPoints, type RommeCard, type RommeState } from './romme.js';
 
 const zero = () => 0;
 const people = [{ id:'a',name:'Anna' },{ id:'b',name:'Ben' }];
 const card = (suit:'clubs'|'diamonds'|'hearts'|'spades', rank:Exclude<RommeCard['rank'],'joker'>, copy=1):RommeCard => ({ id:`${suit}-${rank}-${copy}`,suit,rank });
 const joker = (index=1):RommeCard => ({ id:`joker-${index}`,suit:'joker',rank:'joker' });
-const state = (hand:RommeCard[]):RommeState => ({ id:'game',players:[{...people[0]!,connected:true,hand,opened:false},{...people[1]!,connected:true,hand:[card('clubs','2')],opened:false}],deck:[card('spades','2')],discard:[card('hearts','3')],melds:[],currentPlayerId:'a',hasDrawn:true,rules:{openingPoints:40,requireDiscardUse:false},phase:'playing',version:1 });
+const state = (hand:RommeCard[]):RommeState => ({ id:'game',players:[{...people[0]!,connected:true,hand,opened:false},{...people[1]!,connected:true,hand:[card('clubs','2')],opened:false}],deck:[card('spades','2')],discard:[card('hearts','3')],melds:[],currentPlayerId:'a',hasDrawn:true,rules:{variant:'classic',openingPoints:40,requireDiscardUse:false,ginTargetScore:100},phase:'playing',version:1 });
 
 describe('Rommé engine', () => {
   it('uses 110 unique cards and deals thirteen cards', () => {
@@ -75,5 +75,49 @@ describe('Rommé engine', () => {
     expect(() => applyRommeAction(game,'a',{type:'romme:discard',cardId:'clubs-ace-1'},zero)).toThrow('must_draw_first');
     const drawn = applyRommeAction(game,'a',{type:'romme:draw',source:'discard'},zero);
     expect(() => applyRommeAction(drawn,'a',{type:'romme:discard',cardId:'clubs-ace-1'},zero)).toThrow('discard_must_be_used');
+  });
+});
+
+describe('Gin-Rommé engine', () => {
+  const ginRules = { variant:'gin', openingPoints:40, requireDiscardUse:false, ginTargetScore:100 } as const;
+
+  it('uses one deck without jokers and deals ten cards to exactly two players', () => {
+    expect(createGinDeck()).toHaveLength(52);
+    expect(createGinDeck().some((item) => item.rank === 'joker')).toBe(false);
+    const game = createRommeGame('gin', people, zero, ginRules);
+    expect(game.players.map((player) => player.hand.length)).toEqual([10,10]);
+    expect(game.deck).toHaveLength(31);
+    expect(() => createRommeGame('gin', [...people,{id:'c',name:'Cara'}], zero, ginRules)).toThrow('gin_requires_two_players');
+  });
+
+  it('finds the lowest deadwood while keeping aces low', () => {
+    const hand = [card('hearts','ace'),card('hearts','2'),card('hearts','3'),card('clubs','7'),card('diamonds','7'),card('spades','7'),card('clubs','king')];
+    const analysis = analyzeGinHand(hand);
+    expect(analysis.melds).toHaveLength(2);
+    expect(analysis.deadwood.map((item) => item.id)).toEqual(['clubs-king-1']);
+    expect(analysis.deadwoodPoints).toBe(10);
+  });
+
+  it('offers the upcard in order and makes the non-dealer draw after two passes', () => {
+    let game = createRommeGame('gin', people, zero, ginRules);
+    const nonDealer = game.currentPlayerId; const dealer = game.dealerId!;
+    game = applyRommeAction(game, nonDealer, {type:'romme:pass-opening'}, zero);
+    expect(game.currentPlayerId).toBe(dealer);
+    game = applyRommeAction(game, dealer, {type:'romme:pass-opening'}, zero);
+    expect(game.currentPlayerId).toBe(nonDealer);
+    expect(() => applyRommeAction(game, nonDealer, {type:'romme:draw',source:'discard'}, zero)).toThrow('opening_stock_required');
+    expect(applyRommeAction(game, nonDealer, {type:'romme:draw',source:'stock'}, zero).hasDrawn).toBe(true);
+  });
+
+  it('scores Gin and ends the round', () => {
+    const game = createRommeGame('gin', people, zero, ginRules);
+    const player = game.players.find((item) => item.id === game.currentPlayerId)!;
+    player.hand = [card('hearts','ace'),card('hearts','2'),card('hearts','3'),card('clubs','7'),card('diamonds','7'),card('spades','7'),card('hearts','7'),card('spades','9'),card('spades','10'),card('spades','jack'),card('diamonds','king')];
+    game.hasDrawn = true; delete game.ginOpeningPasses;
+    const result = applyRommeAction(game, player.id, {type:'romme:knock',cardId:'diamonds-king-1'}, zero);
+    expect(result.phase).toBe('round-ended');
+    expect(result.roundResult?.reason).toBe('gin');
+    expect(result.roundResult?.winnerId).toBe(player.id);
+    expect(result.roundResult?.pointsAwarded).toBeGreaterThanOrEqual(35);
   });
 });
