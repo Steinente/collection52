@@ -380,7 +380,7 @@ function useNewHandCards(cards: readonly { id: string }[], gameId: string) {
     previous.current = { gameId, ids:currentIds };
     if (!additions.length) return;
     window.clearTimeout(timer.current); setNewCardIds(new Set(additions));
-    timer.current = window.setTimeout(() => setNewCardIds(new Set()), 1500);
+    timer.current = window.setTimeout(() => setNewCardIds(new Set()), 2500);
   }, [cards, gameId, signature]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   return newCardIds;
