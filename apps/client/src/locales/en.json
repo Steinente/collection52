@@ -82,6 +82,7 @@
   "playerList": "Players",
   "handCardsCount_one": "{{count}} card",
   "handCardsCount_other": "{{count}} cards",
+  "dragCardToSort": "Drag to sort this card. Move it with Alt and the arrow keys.",
   "host": "Host",
   "offline": "offline",
   "online": "online",

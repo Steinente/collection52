@@ -30,3 +30,9 @@ export function reconcileHandOrder<T extends RommeCard>(previousOrder: readonly 
   if (settings.mode === 'none') return currentOrder;
   return sortHand(currentOrder.map((id) => byId.get(id)!), settings).map((card) => card.id);
 }
+
+export function moveHandCard(order: readonly string[], sourceId: string, targetId: string): string[] {
+  if (sourceId === targetId) return [...order];
+  const next = [...order]; const sourceIndex = next.indexOf(sourceId); const targetIndex = next.indexOf(targetId); if (sourceIndex < 0 || targetIndex < 0) return next;
+  const [moved] = next.splice(sourceIndex, 1); const adjacentIndex = next.indexOf(targetId); next.splice(sourceIndex < targetIndex ? adjacentIndex + 1 : adjacentIndex, 0, moved!); return next;
+}

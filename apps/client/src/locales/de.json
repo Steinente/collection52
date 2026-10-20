@@ -82,6 +82,7 @@
   "playerList": "Spieler",
   "handCardsCount_one": "{{count}} Handkarte",
   "handCardsCount_other": "{{count}} Handkarten",
+  "dragCardToSort": "Ziehen, um die Handkarte zu sortieren. Mit Alt und Pfeiltasten verschieben.",
   "host": "Host",
   "offline": "offline",
   "online": "online",
