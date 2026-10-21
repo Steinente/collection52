@@ -185,6 +185,7 @@ export interface ClientToServerEvents {
   "lobby:update": (data: unknown, ack: (result: AckResult) => void) => void;
   "lobby:close": (ack: (result: AckResult) => void) => void;
   "lobby:keepalive": (ack: (result: AckResult) => void) => void;
+  "presence:active": (ack: (result: AckResult) => void) => void;
   "game:start": (ack: (result: AckResult) => void) => void;
   "game:restart": (ack: (result: AckResult) => void) => void;
   "game:action": (data: unknown, ack: (result: AckResult) => void) => void;

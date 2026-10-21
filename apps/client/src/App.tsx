@@ -304,6 +304,53 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const code = lobby?.code;
+    if (!code || !playerId) return;
+
+    let lastConfirmation = 0;
+    const confirmPresence = () => {
+      if (document.visibilityState === "hidden") return;
+      if (!socket.connected) {
+        socket.connect();
+        return;
+      }
+      const now = Date.now();
+      if (now - lastConfirmation < 5_000) return;
+      lastConfirmation = now;
+      socket.emit("presence:active", (result) => {
+        if (result.ok || result.error !== "not_in_lobby") return;
+        const token = localStorage.getItem(sessionKey(code));
+        if (!token) return;
+        socket.emit("lobby:resume", { code, token }, (resumeResult) => {
+          if (resumeResult.ok && resumeResult.playerId) {
+            setPlayerId(resumeResult.playerId);
+          }
+        });
+      });
+    };
+    const confirmWhenVisible = () => {
+      if (document.visibilityState === "visible") confirmPresence();
+    };
+
+    window.addEventListener("focus", confirmPresence);
+    window.addEventListener("online", confirmPresence);
+    document.addEventListener("visibilitychange", confirmWhenVisible);
+    document.addEventListener("pointerdown", confirmPresence, true);
+    document.addEventListener("keydown", confirmPresence, true);
+    const interval = window.setInterval(confirmPresence, 25_000);
+    confirmPresence();
+
+    return () => {
+      window.removeEventListener("focus", confirmPresence);
+      window.removeEventListener("online", confirmPresence);
+      document.removeEventListener("visibilitychange", confirmWhenVisible);
+      document.removeEventListener("pointerdown", confirmPresence, true);
+      document.removeEventListener("keydown", confirmPresence, true);
+      window.clearInterval(interval);
+    };
+  }, [lobby?.code, playerId]);
+
   const forgetRetainedLobby = (code: string) => {
     localStorage.removeItem(sessionKey(code));
     localStorage.removeItem(retainedLobbyStorageKey);

@@ -17,6 +17,7 @@ export default defineConfig({
       command: "npm run dev -w @collection52/server",
       url: "http://127.0.0.1:3001/health",
       reuseExistingServer: true,
+      env: { PRESENCE_GRACE_SECONDS: "1" },
     },
     {
       command: "npm run dev -w @collection52/client -- --host 127.0.0.1",

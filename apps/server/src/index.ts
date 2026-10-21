@@ -53,18 +53,20 @@ const sessions = new Map<string, { lobby: Lobby; player: LobbyPlayer }>();
 const broadcastList = () => io.emit("lobby:list", manager.list());
 const broadcastLobby = (lobby: Lobby) => {
   for (const p of lobby.players)
-    if (p.socketId)
-      io.to(p.socketId).emit("lobby:state", manager.view(lobby, p.id));
+    for (const socketId of p.socketIds)
+      io.to(socketId).emit("lobby:state", manager.view(lobby, p.id));
 };
 const manager = new LobbyManager(
   {
     changed: broadcastLobby,
     event: (lobby, event) => {
       if (event.visibility === "private") {
-        const socketId = lobby.players.find(
+        const socketIds = lobby.players.find(
           (player) => player.id === event.recipientId,
-        )?.socketId;
-        if (socketId) io.to(socketId).emit("game:event", event);
+        )?.socketIds;
+        if (socketIds)
+          for (const socketId of socketIds)
+            io.to(socketId).emit("game:event", event);
       } else io.to(lobby.code).emit("game:event", event);
     },
     listChanged: broadcastList,
@@ -75,6 +77,7 @@ const manager = new LobbyManager(
   },
   Number(process.env.LOBBY_IDLE_MINUTES ?? 30) * 60_000,
   Number(process.env.LOBBY_WARNING_MINUTES ?? 5) * 60_000,
+  Number(process.env.PRESENCE_GRACE_SECONDS ?? 5) * 1000,
 );
 const fail = (error: unknown) => ({
   ok: false,
@@ -90,7 +93,8 @@ const session = (
 ) => {
   const s = sessions.get(socket.id);
   if (!s) throw new Error("not_in_lobby");
-  if (s.player.socketId !== socket.id) throw new Error("stale_connection");
+  if (!s.lobby.players.includes(s.player)) throw new Error("stale_connection");
+  manager.activate(s.lobby, s.player, socket.id);
   return s;
 };
 const attach = (
@@ -98,6 +102,7 @@ const attach = (
   lobby: Lobby,
   player: LobbyPlayer,
 ) => {
+  player.socketIds.add(socket.id);
   sessions.set(socket.id, { lobby, player });
   socket.join(lobby.code);
 };
@@ -221,7 +226,7 @@ io.on("connection", (socket) => {
   socket.on("lobby:detach", (ack) => {
     try {
       const s = session(socket);
-      manager.detach(s.lobby, s.player.id);
+      manager.detach(s.lobby, s.player.id, socket.id);
       sessions.delete(socket.id);
       socket.leave(s.lobby.code);
       ack({ ok: true });
@@ -238,10 +243,11 @@ io.on("connection", (socket) => {
       if (!lobby) throw new Error("lobby_not_found");
       const player = manager.playerForToken(lobby, data.token);
       if (!player) throw new Error("invalid_session");
+      const socketIds = [...player.socketIds];
       manager.leave(lobby, player.id);
-      if (player.socketId) {
-        sessions.delete(player.socketId);
-        io.sockets.sockets.get(player.socketId)?.leave(lobby.code);
+      for (const socketId of socketIds) {
+        sessions.delete(socketId);
+        io.sockets.sockets.get(socketId)?.leave(lobby.code);
       }
       ack({ ok: true });
     } catch (e) {
@@ -272,6 +278,14 @@ io.on("connection", (socket) => {
     try {
       const s = session(socket);
       manager.keepAlive(s.lobby, s.player.id);
+      ack({ ok: true });
+    } catch (e) {
+      ack(fail(e));
+    }
+  });
+  socket.on("presence:active", (ack) => {
+    try {
+      session(socket);
       ack({ ok: true });
     } catch (e) {
       ack(fail(e));

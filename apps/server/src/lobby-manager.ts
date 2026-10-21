@@ -40,7 +40,7 @@ export type LobbyPlayer = {
   name: string;
   tokenHash: string;
   connected: boolean;
-  socketId?: string;
+  socketIds: Set<string>;
   joinedAt: number;
   isHost: boolean;
 };
@@ -95,16 +95,20 @@ const safeCode = () =>
 export class LobbyManager {
   readonly lobbies = new Map<string, Lobby>();
   private cleanupTimer?: NodeJS.Timeout;
+  private readonly offlineTimers = new Map<string, NodeJS.Timeout>();
   constructor(
     private hooks: ManagerHooks,
     private idleMs = 30 * 60_000,
     private warningMs = 5 * 60_000,
+    private disconnectGraceMs = 5_000,
   ) {
     this.cleanupTimer = setInterval(() => this.cleanup(), 30_000);
     this.cleanupTimer.unref();
   }
   stop() {
     if (this.cleanupTimer) clearInterval(this.cleanupTimer);
+    for (const timer of this.offlineTimers.values()) clearTimeout(timer);
+    this.offlineTimers.clear();
   }
   private token() {
     return randomBytes(32).toString("base64url");
@@ -219,7 +223,7 @@ export class LobbyManager {
       name,
       tokenHash: hashToken(token),
       connected: true,
-      socketId,
+      socketIds: new Set([socketId]),
       joinedAt: now,
       isHost: true,
     };
@@ -286,7 +290,7 @@ export class LobbyManager {
       name,
       tokenHash: hashToken(token),
       connected: true,
-      socketId,
+      socketIds: new Set([socketId]),
       joinedAt: Date.now(),
       isHost: false,
     };
@@ -300,25 +304,66 @@ export class LobbyManager {
   resume(lobby: Lobby, token: string, socketId: string) {
     const player = lobby.players.find((p) => p.tokenHash === hashToken(token));
     if (!player) throw new Error("invalid_session");
-    if (player.connected && player.socketId === socketId) return player;
+    this.activate(lobby, player, socketId);
+    return player;
+  }
+  activate(lobby: Lobby, player: LobbyPlayer, socketId: string) {
+    const timer = this.offlineTimers.get(player.id);
+    if (timer) {
+      clearTimeout(timer);
+      this.offlineTimers.delete(player.id);
+    }
+    player.socketIds.add(socketId);
+    if (player.connected) return;
     player.connected = true;
-    player.socketId = socketId;
-    if (lobby.game)
-      lobby.game.players.find((p) => p.id === player.id)!.connected = true;
+    const gamePlayer = lobby.game?.players.find(
+      (candidate) => candidate.id === player.id,
+    );
+    if (gamePlayer) gamePlayer.connected = true;
     this.event(lobby, "player.reconnected", player.id, { name: player.name });
     this.hooks.changed(lobby);
-    return player;
+  }
+  private markDisconnected(lobby: Lobby, player: LobbyPlayer) {
+    const timer = this.offlineTimers.get(player.id);
+    if (timer) {
+      clearTimeout(timer);
+      this.offlineTimers.delete(player.id);
+    }
+    if (!player.connected || player.socketIds.size > 0) return;
+    player.connected = false;
+    const gamePlayer = lobby.game?.players.find(
+      (candidate) => candidate.id === player.id,
+    );
+    if (gamePlayer) gamePlayer.connected = false;
+    this.event(lobby, "player.disconnected", player.id, { name: player.name });
+    this.hooks.changed(lobby);
   }
   disconnect(socketId: string) {
     for (const lobby of this.lobbies.values()) {
-      const p = lobby.players.find((x) => x.socketId === socketId);
-      if (!p) continue;
-      p.connected = false;
-      delete p.socketId;
-      if (lobby.game)
-        lobby.game.players.find((x) => x.id === p.id)!.connected = false;
-      this.event(lobby, "player.disconnected", p.id, { name: p.name });
-      this.hooks.changed(lobby);
+      const player = lobby.players.find((candidate) =>
+        candidate.socketIds.has(socketId),
+      );
+      if (!player) continue;
+      player.socketIds.delete(socketId);
+      if (player.socketIds.size > 0 || !player.connected) continue;
+      if (this.disconnectGraceMs <= 0) {
+        this.markDisconnected(lobby, player);
+        continue;
+      }
+      const existingTimer = this.offlineTimers.get(player.id);
+      if (existingTimer) clearTimeout(existingTimer);
+      const timer = setTimeout(() => {
+        this.offlineTimers.delete(player.id);
+        if (
+          !lobby.closed &&
+          lobby.players.includes(player) &&
+          player.socketIds.size === 0
+        ) {
+          this.markDisconnected(lobby, player);
+        }
+      }, this.disconnectGraceMs);
+      timer.unref();
+      this.offlineTimers.set(player.id, timer);
     }
   }
   start(lobby: Lobby, playerId: string) {
@@ -470,24 +515,24 @@ export class LobbyManager {
       }
     this.hooks.changed(lobby);
   }
-  detach(lobby: Lobby, playerId: string) {
+  detach(lobby: Lobby, playerId: string, socketId?: string) {
     if (lobby.hostId === playerId) throw new Error("host_must_close");
     const player = lobby.players.find((candidate) => candidate.id === playerId);
     if (!player) throw new Error("not_in_lobby");
-    player.connected = false;
-    delete player.socketId;
-    if (lobby.game)
-      lobby.game.players.find(
-        (candidate) => candidate.id === player.id,
-      )!.connected = false;
-    this.event(lobby, "player.disconnected", player.id, { name: player.name });
-    this.hooks.changed(lobby);
+    if (socketId) player.socketIds.delete(socketId);
+    else player.socketIds.clear();
+    if (player.socketIds.size === 0) this.markDisconnected(lobby, player);
   }
   leave(lobby: Lobby, playerId: string) {
     if (lobby.hostId === playerId) throw new Error("host_must_close");
     const playerName =
       lobby.players.find((player) => player.id === playerId)?.name ?? "";
     if (!playerName) throw new Error("not_in_lobby");
+    const offlineTimer = this.offlineTimers.get(playerId);
+    if (offlineTimer) {
+      clearTimeout(offlineTimer);
+      this.offlineTimers.delete(playerId);
+    }
     let gameEffect = "none";
     if (lobby.game) {
       const remainingPlayerCount = lobby.players.length - 1;
@@ -522,6 +567,11 @@ export class LobbyManager {
   close(lobby: Lobby, reason: string) {
     if (lobby.closed) return;
     lobby.closed = true;
+    for (const player of lobby.players) {
+      const timer = this.offlineTimers.get(player.id);
+      if (timer) clearTimeout(timer);
+      this.offlineTimers.delete(player.id);
+    }
     this.event(lobby, "lobby.closed", undefined, { reason });
     this.hooks.closed(lobby, reason);
     this.lobbies.delete(lobby.code);

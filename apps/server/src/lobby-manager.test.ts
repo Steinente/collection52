@@ -93,6 +93,76 @@ describe("LobbyManager", () => {
     expect(h.event).toHaveBeenCalledTimes(eventCalls);
     manager.stop();
   });
+  it("keeps a player online through a short mobile-style connection interruption", async () => {
+    vi.useFakeTimers();
+    const h = hooks();
+    const manager = new LobbyManager(h, 30 * 60_000, 5 * 60_000, 1_000);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+
+    manager.disconnect("s1");
+    expect(made.player.connected).toBe(true);
+    manager.resume(made.lobby, made.token, "s2");
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(made.player.connected).toBe(true);
+    expect(
+      made.lobby.events.filter((event) =>
+        ["player.disconnected", "player.reconnected"].includes(event.type),
+      ),
+    ).toHaveLength(0);
+    manager.stop();
+    vi.useRealTimers();
+  });
+  it("stays online while another tab is connected and goes offline after the grace period", async () => {
+    vi.useFakeTimers();
+    const h = hooks();
+    const manager = new LobbyManager(h, 30 * 60_000, 5 * 60_000, 1_000);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    manager.resume(made.lobby, made.token, "s2");
+
+    manager.disconnect("s1");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(made.player.connected).toBe(true);
+
+    manager.disconnect("s2");
+    await vi.advanceTimersByTimeAsync(999);
+    expect(made.player.connected).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(made.player.connected).toBe(false);
+    expect(
+      made.lobby.events.filter((event) => event.type === "player.disconnected"),
+    ).toHaveLength(1);
+    manager.stop();
+    vi.useRealTimers();
+  });
+  it("immediately restores online state when an offline player interacts", async () => {
+    const h = hooks();
+    const manager = new LobbyManager(h, 30 * 60_000, 5 * 60_000, 0);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    manager.disconnect("s1");
+    expect(made.player.connected).toBe(false);
+
+    manager.activate(made.lobby, made.player, "s2");
+
+    expect(made.player.connected).toBe(true);
+    expect(made.player.socketIds.has("s2")).toBe(true);
+    expect(
+      made.lobby.events.filter((event) => event.type === "player.reconnected"),
+    ).toHaveLength(1);
+    manager.stop();
+  });
   it("retains a detached guest and only removes them after a permanent leave", async () => {
     const h = hooks();
     const manager = new LobbyManager(h);

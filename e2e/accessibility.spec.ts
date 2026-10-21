@@ -4,6 +4,17 @@ import { io } from "socket.io-client";
 
 const testLobbySessions = new Map<string, string>();
 
+async function readLobbyCode(page: Page) {
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("lobby") ?? "")
+    .toMatch(/^[A-Z2-9X]{8}$/);
+  const code = new URL(page.url()).searchParams.get("lobby")!;
+  await expect(
+    page.getByText(`Lobby ${code}`, { exact: true }).first(),
+  ).toBeVisible();
+  return code;
+}
+
 async function rememberTestLobby(page: Page, code: string) {
   const token = await page.evaluate(
     (lobbyCode) => localStorage.getItem(`c52:session:${lobbyCode}`),
@@ -366,16 +377,11 @@ test("two browser contexts can create, join, and start Durak", async ({
     await create
       .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
       .click();
-    const lobbyHeading = host.getByRole("heading", {
-      level: 1,
-      name: /^Lobby [A-Z2-9X]{8}$/,
-    });
-    await expect(lobbyHeading).toBeVisible();
+    const code = await readLobbyCode(host);
     const startGame = host.getByRole("button", {
       name: /Start game|Partie starten/,
     });
     await expect(startGame).toBeDisabled();
-    const code = (await lobbyHeading.textContent())!.split(" ").at(-1)!;
     await rememberTestLobby(host, code);
     await host.addInitScript(() => {
       const state = window as typeof window & { c52HomeFlashed?: boolean };
@@ -388,7 +394,7 @@ test("two browser contexts can create, join, and start Durak", async ({
       }).observe(document.documentElement, { childList: true, subtree: true });
     });
     await host.reload();
-    await expect(lobbyHeading).toBeVisible();
+    expect(await readLobbyCode(host)).toBe(code);
     expect(
       await host.evaluate(
         () =>
@@ -396,13 +402,15 @@ test("two browser contexts can create, join, and start Durak", async ({
             .c52HomeFlashed,
       ),
     ).toBe(false);
-    await host.getByRole("button", { name: /Copy code|Code kopieren/ }).click();
-    await expect(
-      host
-        .locator("#main")
-        .getByRole("status")
-        .filter({ hasText: /lobby code was copied|Lobby-Code wurde kopiert/i }),
-    ).toBeVisible();
+    const copyCodeButton = host.getByRole("button", {
+      name: /Copy code|Code kopieren/,
+    });
+    await copyCodeButton.click();
+    await expect(copyCodeButton).toHaveClass(/copy-success/);
+    await expect(copyCodeButton).toContainText(/Copied|Kopiert/);
+    await expect(host.locator('.sr-only[aria-live="polite"]')).toContainText(
+      /lobby code was copied|Lobby-Code wurde kopiert/i,
+    );
     const rulesButton = host
       .getByRole("contentinfo")
       .getByRole("button", { name: /Game rules|Spielregeln/ });
@@ -494,12 +502,7 @@ test("two browser contexts can create, join, and start Durak", async ({
     );
     const saved = await savedContext.newPage();
     await saved.goto(`/?lobby=${code}`);
-    await expect(
-      saved.getByRole("heading", {
-        level: 1,
-        name: new RegExp(`^Lobby ${code}$`),
-      }),
-    ).toBeVisible();
+    expect(await readLobbyCode(saved)).toBe(code);
     await expect(host.getByText("Clara", { exact: true })).toBeVisible();
     saved.once("dialog", (dialog) => dialog.accept());
     await saved
@@ -515,12 +518,7 @@ test("two browser contexts can create, join, and start Durak", async ({
     await saved
       .getByRole("button", { name: /Return to lobby|Zur Lobby zurückkehren/ })
       .click();
-    await expect(
-      saved.getByRole("heading", {
-        level: 1,
-        name: new RegExp(`^Lobby ${code}$`),
-      }),
-    ).toBeVisible();
+    expect(await readLobbyCode(saved)).toBe(code);
     saved.once("dialog", (dialog) => dialog.accept());
     await saved
       .getByRole("button", { name: /Leave lobby|Lobby verlassen/ })
@@ -753,12 +751,7 @@ test("two browser contexts can play a complete Schwimmen turn", async ({
     await host
       .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
       .click();
-    const heading = host.getByRole("heading", {
-      level: 1,
-      name: /^Lobby [A-Z2-9X]{8}$/,
-    });
-    await expect(heading).toBeVisible();
-    const code = (await heading.textContent())!.split(" ").at(-1)!;
+    const code = await readLobbyCode(host);
     await rememberTestLobby(host, code);
     await expect(host.getByText(/32 cards|32 Karten/).first()).toBeVisible();
     await guest.goto("/");
@@ -860,12 +853,7 @@ test("Mau-Mau house rules are configurable and the first turn is playable", asyn
     await host
       .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
       .click();
-    let heading = host.getByRole("heading", {
-      level: 1,
-      name: /^Lobby [A-Z2-9X]{8}$/,
-    });
-    await expect(heading).toBeVisible();
-    let code = (await heading.textContent())!.split(" ").at(-1)!;
+    let code = await readLobbyCode(host);
     await rememberTestLobby(host, code);
     const stackSevens = host.getByRole("checkbox", {
       name: /Stack sevens|Siebenen stapeln/,
@@ -911,12 +899,7 @@ test("Mau-Mau house rules are configurable and the first turn is playable", asyn
     await host
       .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
       .click();
-    heading = host.getByRole("heading", {
-      level: 1,
-      name: /^Lobby [A-Z2-9X]{8}$/,
-    });
-    await expect(heading).toBeVisible();
-    code = (await heading.textContent())!.split(" ").at(-1)!;
+    code = await readLobbyCode(host);
     await rememberTestLobby(host, code);
     await expect(
       host.getByRole("checkbox", { name: /Stack sevens|Siebenen stapeln/ }),
@@ -1079,12 +1062,7 @@ test("Rommé can be configured, started, and drawn from", async ({
     await host
       .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
       .click();
-    const heading = host.getByRole("heading", {
-      level: 1,
-      name: /^Lobby [A-Z2-9X]{8}$/,
-    });
-    await expect(heading).toBeVisible();
-    const code = (await heading.textContent())!.split(" ").at(-1)!;
+    const code = await readLobbyCode(host);
     await rememberTestLobby(host, code);
     const variantSelect = host.getByRole("combobox", {
       name: /Game variant|Spielart/,
