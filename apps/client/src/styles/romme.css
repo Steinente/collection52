@@ -78,11 +78,11 @@
     0 8px 18px rgb(0 0 0/0.2);
 }
 .romme-table-card b {
-  font-size: 0.92rem;
+  font-size: calc(0.92rem * var(--card-rank-scale, 1));
   line-height: 1;
 }
 .romme-table-card i {
-  font-size: 1rem;
+  font-size: calc(1rem * var(--card-suit-scale, 1));
   font-style: normal;
 }
 .romme-table-card .red {
@@ -308,10 +308,18 @@
     padding: clamp(0.28rem, 1.2vw, 0.42rem);
   }
   .hand-cards .playing-card span {
-    font-size: clamp(0.88rem, 3.4vw, 1.08rem);
+    font-size: clamp(
+      calc(0.88rem * var(--card-rank-scale, 1)),
+      calc(3.4vw * var(--card-rank-scale, 1)),
+      calc(1.08rem * var(--card-rank-scale, 1))
+    );
   }
   .hand-cards .playing-card i {
-    font-size: clamp(0.95rem, 3.7vw, 1.15rem);
+    font-size: clamp(
+      calc(0.95rem * var(--card-suit-scale, 1)),
+      calc(3.7vw * var(--card-suit-scale, 1)),
+      calc(1.15rem * var(--card-suit-scale, 1))
+    );
   }
   .large-cards .hand-cards .playing-card {
     width: clamp(64px, 18vw, 86px);
@@ -567,20 +575,6 @@
   .hand-sort-direction {
     width: 42px !important;
     padding: 0.35rem;
-  }
-}
-.large-cards .playing-card span {
-  font-size: 1.42rem;
-}
-.large-cards .playing-card i {
-  font-size: 1.55rem;
-}
-@media (max-width: 760px) {
-  .large-cards .hand-cards .playing-card span {
-    font-size: clamp(1.08rem, 4.2vw, 1.35rem);
-  }
-  .large-cards .hand-cards .playing-card i {
-    font-size: clamp(1.16rem, 4.6vw, 1.48rem);
   }
 }
 .playing-card {

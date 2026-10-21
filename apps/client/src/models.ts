@@ -140,12 +140,17 @@ export type RetainedLobby = {
   status: "waiting" | "playing";
 };
 
+export type CardDesign = "classic" | "four-color" | "outline" | "midnight";
+
 export type Preferences = {
   theme: "system" | "light" | "dark";
   accent: "collection" | "ocean" | "violet" | "amber" | "rose" | "custom";
   customAccent: string;
   largeText: boolean;
   largeCards: boolean;
+  cardRankScale: number;
+  cardSuitScale: number;
+  cardDesign: CardDesign;
   highContrast: boolean;
   reducedMotion: boolean;
   speech: boolean;

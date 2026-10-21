@@ -261,6 +261,12 @@ export function CardFace({ card }: { card: RommeCard }) {
     king: "K",
     ace: "A",
   };
+  const outlineSuits = {
+    clubs: "♧",
+    diamonds: "♢",
+    hearts: "♡",
+    spades: "♤",
+  } as const;
   if (card.rank === "joker")
     return (
       <span aria-hidden="true" className="joker">
@@ -270,12 +276,14 @@ export function CardFace({ card }: { card: RommeCard }) {
   return (
     <span
       aria-hidden="true"
+      data-suit={card.suit}
       className={
         card.suit === "hearts" || card.suit === "diamonds" ? "red" : ""
       }
     >
       <b>{faces[card.rank] ?? card.rank}</b>
-      <i>{suitSymbols[card.suit]}</i>
+      <i className="card-suit-filled">{suitSymbols[card.suit]}</i>
+      <i className="card-suit-outline">{outlineSuits[card.suit]}</i>
     </span>
   );
 }

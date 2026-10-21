@@ -1,0 +1,58 @@
+.card-suit-outline {
+  display: none;
+}
+
+:root[data-card-design="four-color"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card)
+  [data-suit="clubs"] {
+  color: #15803d;
+}
+:root[data-card-design="four-color"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card)
+  [data-suit="diamonds"] {
+  color: #1769aa;
+}
+:root[data-card-design="four-color"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card)
+  [data-suit="hearts"] {
+  color: #c51936;
+}
+:root[data-card-design="four-color"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card)
+  [data-suit="spades"] {
+  color: #171717;
+}
+
+:root[data-card-design="outline"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card) {
+  border-color: #9d927d;
+  background: #fffaf0;
+}
+:root[data-card-design="outline"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card)
+  b {
+  font-family: Georgia, "Times New Roman", serif;
+}
+:root[data-card-design="outline"] .card-suit-filled {
+  display: none;
+}
+:root[data-card-design="outline"] .card-suit-outline {
+  display: block;
+}
+
+:root[data-card-design="midnight"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card) {
+  border-color: #536174;
+  background: linear-gradient(145deg, #252c38, #11151c);
+  color: #f4f7fb;
+}
+:root[data-card-design="midnight"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card)
+  .red {
+  color: #ff7187;
+}
+:root[data-card-design="midnight"]
+  :is(.playing-card, .mau-mau-discard-card, .romme-table-card)
+  .joker {
+  color: #c7a6ff;
+}

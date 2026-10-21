@@ -15,6 +15,9 @@ export const defaultPreferences: Preferences = {
   customAccent: "#c42b1c",
   largeText: false,
   largeCards: false,
+  cardRankScale: 1,
+  cardSuitScale: 1,
+  cardDesign: "classic",
   highContrast: false,
   reducedMotion: false,
   speech: false,
@@ -88,6 +91,18 @@ const accentChoices: Preferences["accent"][] = [
   "rose",
   "custom",
 ];
+const cardDesignChoices: Preferences["cardDesign"][] = [
+  "classic",
+  "four-color",
+  "outline",
+  "midnight",
+];
+
+function preferenceScale(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(1.4, Math.max(0.8, value))
+    : fallback;
+}
 
 export function loadPreferences(): Preferences {
   try {
@@ -99,7 +114,25 @@ export function loadPreferences(): Preferences {
     )
       ? (stored.accent as Preferences["accent"])
       : defaultPreferences.accent;
-    return { ...defaultPreferences, ...stored, accent };
+    const cardDesign = cardDesignChoices.includes(
+      stored.cardDesign as Preferences["cardDesign"],
+    )
+      ? (stored.cardDesign as Preferences["cardDesign"])
+      : defaultPreferences.cardDesign;
+    return {
+      ...defaultPreferences,
+      ...stored,
+      accent,
+      cardDesign,
+      cardRankScale: preferenceScale(
+        stored.cardRankScale,
+        defaultPreferences.cardRankScale,
+      ),
+      cardSuitScale: preferenceScale(
+        stored.cardSuitScale,
+        defaultPreferences.cardSuitScale,
+      ),
+    };
   } catch {
     return { ...defaultPreferences };
   }

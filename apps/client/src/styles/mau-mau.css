@@ -56,11 +56,11 @@
   padding: 0.52rem;
 }
 .mau-mau-discard-card b {
-  font-size: 1.2rem;
+  font-size: calc(1.2rem * var(--card-rank-scale, 1));
   line-height: 1;
 }
 .mau-mau-discard-card i {
-  font-size: 1.25rem;
+  font-size: calc(1.25rem * var(--card-suit-scale, 1));
   font-style: normal;
   line-height: 1;
 }

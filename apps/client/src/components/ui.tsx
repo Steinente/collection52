@@ -55,127 +55,333 @@ export function SettingsDialog({
   setLanguage: (l: string) => void;
 }) {
   const { t } = useTranslation();
+  const tabs = ["general", "display", "cards", "audio"] as const;
+  type SettingsTab = (typeof tabs)[number];
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const tabLabels: Record<SettingsTab, string> = {
+    general: t("settingsTabGeneral"),
+    display: t("settingsTabDisplay"),
+    cards: t("settingsTabCards"),
+    audio: t("settingsTabAudio"),
+  };
+  const cardDesigns = [
+    {
+      value: "classic",
+      label: t("cardDesignClassic"),
+      description: t("cardDesignClassicDescription"),
+    },
+    {
+      value: "four-color",
+      label: t("cardDesignFourColor"),
+      description: t("cardDesignFourColorDescription"),
+    },
+    {
+      value: "outline",
+      label: t("cardDesignOutline"),
+      description: t("cardDesignOutlineDescription"),
+    },
+    {
+      value: "midnight",
+      label: t("cardDesignMidnight"),
+      description: t("cardDesignMidnightDescription"),
+    },
+  ] as const;
   const update = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
     setPrefs({ ...prefs, [key]: value });
   const customColor = validHexColor(prefs.customAccent)
     ? prefs.customAccent
     : defaultPreferences.customAccent;
+  const selectTab = (tab: SettingsTab, focus = false) => {
+    setActiveTab(tab);
+    if (focus) {
+      requestAnimationFrame(() =>
+        document.getElementById(`settings-tab-${tab}`)?.focus(),
+      );
+    }
+  };
+  const handleTabKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    tab: SettingsTab,
+  ) => {
+    const currentIndex = tabs.indexOf(tab);
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight")
+      nextIndex = (currentIndex + 1) % tabs.length;
+    if (event.key === "ArrowLeft")
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = tabs.length - 1;
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    selectTab(tabs[nextIndex]!, true);
+  };
   return (
     <Dialog title={t("settings")} close={close}>
-      <div className="settings-grid">
-        <label>
-          {t("language")}
-          <ResponsiveSelect
-            label={t("language")}
-            value={language}
-            onChange={setLanguage}
-            options={[
-              { value: "de", label: "Deutsch" },
-              { value: "en", label: "English" },
-            ]}
-          />
-        </label>
-        <label>
-          {t("theme")}
-          <ResponsiveSelect
-            label={t("theme")}
-            value={prefs.theme}
-            onChange={(value) => update("theme", value as Preferences["theme"])}
-            options={[
-              { value: "system", label: t("themeSystem") },
-              { value: "light", label: t("themeLight") },
-              { value: "dark", label: t("themeDark") },
-            ]}
-          />
-        </label>
-        <label>
-          {t("accentColor")}
-          <ResponsiveSelect
-            label={t("accentColor")}
-            value={prefs.accent}
-            onChange={(value) =>
-              update("accent", value as Preferences["accent"])
-            }
-            options={[
-              { value: "collection", label: t("accentCollection") },
-              { value: "ocean", label: t("accentOcean") },
-              { value: "violet", label: t("accentViolet") },
-              { value: "amber", label: t("accentAmber") },
-              { value: "rose", label: t("accentRose") },
-              { value: "custom", label: t("accentCustom") },
-            ]}
-          />
-        </label>
+      <div className="settings-dialog-content">
         <div
-          className={`custom-accent-card ${prefs.accent === "custom" ? "active" : "disabled"}`}
-          aria-disabled={prefs.accent !== "custom"}
+          className="settings-tabs"
+          role="tablist"
+          aria-label={t("settingsTabsLabel")}
         >
-          <span className="custom-accent-copy">
-            <strong>{t("accentCustomColor")}</strong>
-            <small>{t("accentCustomHint")}</small>
-          </span>
-          <label className="accent-color-picker">
-            <span className="sr-only">{t("accentCustomColor")}</span>
-            <input
-              className="accent-color-input"
-              type="color"
-              value={customColor}
-              disabled={prefs.accent !== "custom"}
-              onChange={(event) =>
-                setPrefs({ ...prefs, customAccent: event.target.value })
-              }
+          {tabs.map((tab) => (
+            <button
+              id={`settings-tab-${tab}`}
+              className="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
+              aria-controls={`settings-panel-${tab}`}
+              tabIndex={activeTab === tab ? 0 : -1}
+              onClick={() => selectTab(tab)}
+              onKeyDown={(event) => handleTabKeyDown(event, tab)}
+              key={tab}
+            >
+              {tabLabels[tab]}
+            </button>
+          ))}
+        </div>
+
+        <div
+          id="settings-panel-general"
+          className="settings-grid settings-panel"
+          role="tabpanel"
+          aria-labelledby="settings-tab-general"
+          hidden={activeTab !== "general"}
+        >
+          <label>
+            {t("language")}
+            <ResponsiveSelect
+              label={t("language")}
+              value={language}
+              onChange={setLanguage}
+              options={[
+                { value: "de", label: "Deutsch" },
+                { value: "en", label: "English" },
+              ]}
             />
-            <output>{customColor.toUpperCase()}</output>
+          </label>
+          <label>
+            {t("theme")}
+            <ResponsiveSelect
+              label={t("theme")}
+              value={prefs.theme}
+              onChange={(value) =>
+                update("theme", value as Preferences["theme"])
+              }
+              options={[
+                { value: "system", label: t("themeSystem") },
+                { value: "light", label: t("themeLight") },
+                { value: "dark", label: t("themeDark") },
+              ]}
+            />
           </label>
         </div>
-        {(
-          [
-            "largeText",
-            "largeCards",
-            "highContrast",
-            "reducedMotion",
-            "turnSound",
-            "speech",
-          ] as const
-        ).map((key) => (
-          <label className="check" key={key}>
+
+        <div
+          id="settings-panel-display"
+          className="settings-grid settings-panel"
+          role="tabpanel"
+          aria-labelledby="settings-tab-display"
+          hidden={activeTab !== "display"}
+        >
+          <label>
+            {t("accentColor")}
+            <ResponsiveSelect
+              label={t("accentColor")}
+              value={prefs.accent}
+              onChange={(value) =>
+                update("accent", value as Preferences["accent"])
+              }
+              options={[
+                { value: "collection", label: t("accentCollection") },
+                { value: "ocean", label: t("accentOcean") },
+                { value: "violet", label: t("accentViolet") },
+                { value: "amber", label: t("accentAmber") },
+                { value: "rose", label: t("accentRose") },
+                { value: "custom", label: t("accentCustom") },
+              ]}
+            />
+          </label>
+          <div
+            className={`custom-accent-card ${prefs.accent === "custom" ? "active" : "disabled"}`}
+            aria-disabled={prefs.accent !== "custom"}
+          >
+            <span className="custom-accent-copy">
+              <strong>{t("accentCustomColor")}</strong>
+              <small>{t("accentCustomHint")}</small>
+            </span>
+            <label className="accent-color-picker">
+              <span className="sr-only">{t("accentCustomColor")}</span>
+              <input
+                className="accent-color-input"
+                type="color"
+                value={customColor}
+                disabled={prefs.accent !== "custom"}
+                onChange={(event) =>
+                  setPrefs({ ...prefs, customAccent: event.target.value })
+                }
+              />
+              <output>{customColor.toUpperCase()}</output>
+            </label>
+          </div>
+          {(["largeText", "highContrast", "reducedMotion"] as const).map(
+            (key) => (
+              <label className="check" key={key}>
+                <input
+                  type="checkbox"
+                  checked={prefs[key]}
+                  onChange={(event) => update(key, event.target.checked)}
+                />
+                {t(key)}
+              </label>
+            ),
+          )}
+        </div>
+
+        <div
+          id="settings-panel-cards"
+          className="settings-grid settings-panel card-settings-panel"
+          role="tabpanel"
+          aria-labelledby="settings-tab-cards"
+          hidden={activeTab !== "cards"}
+        >
+          <label className="check">
             <input
               type="checkbox"
-              checked={prefs[key]}
-              onChange={(e) => update(key, e.target.checked)}
+              checked={prefs.largeCards}
+              onChange={(event) => update("largeCards", event.target.checked)}
             />
-            {t(key)}
+            {t("largeCards")}
           </label>
-        ))}
-        <label>
-          {t("speechRate")}
-          <input
-            type="range"
-            min="0.6"
-            max="1.6"
-            step="0.1"
-            value={prefs.rate}
-            disabled={!prefs.speech}
-            onChange={(e) => update("rate", Number(e.target.value))}
-          />
-          <output>{prefs.rate.toFixed(1)}</output>
-        </label>
-        <label>
-          {t("speechVolume")}
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={prefs.volume}
-            disabled={!prefs.speech}
-            onChange={(e) => update("volume", Number(e.target.value))}
-          />
-          <output>{Math.round(prefs.volume * 100)}%</output>
-        </label>
-        {!("speechSynthesis" in window) && (
-          <p role="status">{t("speechUnavailable")}</p>
-        )}
+          <div className="settings-range-card">
+            <span>
+              <strong>{t("cardRankSize")}</strong>
+              <output>{Math.round(prefs.cardRankScale * 100)}%</output>
+            </span>
+            <input
+              type="range"
+              aria-label={t("cardRankSize")}
+              min="0.8"
+              max="1.4"
+              step="0.1"
+              value={prefs.cardRankScale}
+              onChange={(event) =>
+                update("cardRankScale", Number(event.target.value))
+              }
+            />
+            <small>
+              <span>{t("sizeSmall")}</span>
+              <span>{t("sizeLarge")}</span>
+            </small>
+          </div>
+          <div className="settings-range-card">
+            <span>
+              <strong>{t("cardSuitSize")}</strong>
+              <output>{Math.round(prefs.cardSuitScale * 100)}%</output>
+            </span>
+            <input
+              type="range"
+              aria-label={t("cardSuitSize")}
+              min="0.8"
+              max="1.4"
+              step="0.1"
+              value={prefs.cardSuitScale}
+              onChange={(event) =>
+                update("cardSuitScale", Number(event.target.value))
+              }
+            />
+            <small>
+              <span>{t("sizeSmall")}</span>
+              <span>{t("sizeLarge")}</span>
+            </small>
+          </div>
+          <fieldset className="card-design-settings">
+            <legend>{t("cardDesign")}</legend>
+            <div className="card-design-options">
+              {cardDesigns.map((design) => {
+                const outlined = design.value === "outline";
+                return (
+                  <label
+                    className="card-design-option"
+                    data-preview-design={design.value}
+                    key={design.value}
+                  >
+                    <input
+                      className="sr-only"
+                      type="radio"
+                      name="card-design"
+                      value={design.value}
+                      checked={prefs.cardDesign === design.value}
+                      onChange={() => update("cardDesign", design.value)}
+                    />
+                    <span className="card-design-preview" aria-hidden="true">
+                      <span data-suit="clubs">
+                        <b>A</b>
+                        <i>{outlined ? "♧" : "♣"}</i>
+                      </span>
+                      <span data-suit="diamonds">
+                        <b>Q</b>
+                        <i>{outlined ? "♢" : "♦"}</i>
+                      </span>
+                    </span>
+                    <span className="card-design-copy">
+                      <strong>{design.label}</strong>
+                      <small>{design.description}</small>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        </div>
+
+        <div
+          id="settings-panel-audio"
+          className="settings-grid settings-panel"
+          role="tabpanel"
+          aria-labelledby="settings-tab-audio"
+          hidden={activeTab !== "audio"}
+        >
+          {(["turnSound", "speech"] as const).map((key) => (
+            <label className="check" key={key}>
+              <input
+                type="checkbox"
+                checked={prefs[key]}
+                onChange={(event) => update(key, event.target.checked)}
+              />
+              {t(key)}
+            </label>
+          ))}
+          <label>
+            {t("speechRate")}
+            <input
+              type="range"
+              min="0.6"
+              max="1.6"
+              step="0.1"
+              value={prefs.rate}
+              disabled={!prefs.speech}
+              onChange={(event) => update("rate", Number(event.target.value))}
+            />
+            <output>{prefs.rate.toFixed(1)}</output>
+          </label>
+          <label>
+            {t("speechVolume")}
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={prefs.volume}
+              disabled={!prefs.speech}
+              onChange={(event) => update("volume", Number(event.target.value))}
+            />
+            <output>{Math.round(prefs.volume * 100)}%</output>
+          </label>
+          {!("speechSynthesis" in window) && (
+            <p role="status">{t("speechUnavailable")}</p>
+          )}
+        </div>
       </div>
     </Dialog>
   );

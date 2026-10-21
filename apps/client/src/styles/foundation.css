@@ -353,12 +353,12 @@ select {
 .playing-card span {
   display: grid;
   text-align: center;
-  font-size: 1.15rem;
+  font-size: calc(1.15rem * var(--card-rank-scale, 1));
   line-height: 1;
 }
 .playing-card i {
   font-style: normal;
-  font-size: 1.25rem;
+  font-size: calc(1.25rem * var(--card-suit-scale, 1));
 }
 .playing-card .red {
   color: #b7192d;
