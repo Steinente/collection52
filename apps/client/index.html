@@ -6,6 +6,42 @@
     <meta name="theme-color" content="#12352f" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <style>
+      :root {
+        background: #f4f7f5;
+        color-scheme: light;
+      }
+
+      :root[data-theme="dark"] {
+        background: #000;
+        color-scheme: dark;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: inherit;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="system"] {
+          background: #000;
+          color-scheme: dark;
+        }
+      }
+
+      /* Keep the keyboard skip link outside the viewport before app styles load. */
+      .skip-link {
+        position: fixed;
+        top: -5rem;
+        left: 1rem;
+        z-index: 1100;
+      }
+
+      .skip-link:focus {
+        top: 1rem;
+      }
+    </style>
     <script>
       try {
         const p = JSON.parse(localStorage.getItem("c52:prefs") || "{}");
