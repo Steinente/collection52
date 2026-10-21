@@ -76,6 +76,35 @@ describe("LobbyManager", () => {
     expect(manager.list()).toHaveLength(0);
     manager.stop();
   });
+  it("randomizes the shared player order when a game starts", async () => {
+    const manager = new LobbyManager(
+      hooks(),
+      30 * 60_000,
+      5 * 60_000,
+      5_000,
+      60_000,
+      () => 0,
+    );
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    const ben = await manager.join(made.lobby, "Ben", undefined, "s2");
+    const cara = await manager.join(made.lobby, "Cara", undefined, "s3");
+
+    manager.start(made.lobby, made.player.id);
+
+    const expectedOrder = [ben.player.id, cara.player.id, made.player.id];
+    expect(made.lobby.players.map((player) => player.id)).toEqual(
+      expectedOrder,
+    );
+    expect(made.lobby.game?.players.map((player) => player.id)).toEqual(
+      expectedOrder,
+    );
+    manager.close(made.lobby, "test_finished");
+    manager.stop();
+  });
   it("does not emit another reconnect event for the already active socket", async () => {
     const h = hooks();
     const manager = new LobbyManager(h);

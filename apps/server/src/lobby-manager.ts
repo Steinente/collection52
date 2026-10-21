@@ -1,5 +1,6 @@
 import {
   createHash,
+  randomInt,
   randomBytes,
   randomUUID,
   scrypt as scryptCallback,
@@ -12,6 +13,7 @@ import {
   knackPlayerView,
   mauMauPlayerView,
   rommePlayerView,
+  shuffle,
   playerView as durakPlayerView,
   type DurakState,
   type GameAction,
@@ -120,6 +122,7 @@ export class LobbyManager {
     private warningMs = 5 * 60_000,
     private disconnectGraceMs = 5_000,
     private deviceTransferTtlMs = 60_000,
+    private playerOrderRandomInt: (max: number) => number = randomInt,
   ) {
     this.cleanupTimer = setInterval(() => this.cleanup(), 30_000);
     this.cleanupTimer.unref();
@@ -496,15 +499,18 @@ export class LobbyManager {
       lobby.players.length !== 2
     )
       throw new Error("gin_requires_two_players");
+    const players = shuffle(lobby.players, this.playerOrderRandomInt);
     lobby.gameNumber += 1;
-    lobby.game = createGame({
+    const game = createGame({
       gameId: lobby.gameId,
       id: `${lobby.id}:${lobby.gameNumber}`,
-      players: lobby.players,
+      players,
       deckSize: lobby.deckSize,
       mauMauRules: lobby.mauMauRules,
       rommeRules: lobby.rommeRules,
     });
+    lobby.players = players;
+    lobby.game = game;
     lobby.status = "playing";
     this.touch(lobby);
     this.event(lobby, "game.started", playerId, {
