@@ -21,12 +21,14 @@ export function Home({
   retainedLobby,
   resumeRetainedLobby,
   permanentlyLeaveRetainedLobby,
+  openDeviceTransfer,
 }: {
   lobbies: LobbySummary[];
   remember: (result: Ack) => void;
   retainedLobby: RetainedLobby | undefined;
   resumeRetainedLobby: () => void;
   permanentlyLeaveRetainedLobby: () => void;
+  openDeviceTransfer: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const invitedCode = useMemo(invitationCode, []);
@@ -420,6 +422,17 @@ export function Home({
           {t("joinLobby")}
         </button>
       </form>
+      {!retainedLobby && (
+        <section className="device-transfer-entry panel">
+          <div>
+            <strong>{t("deviceTransferClaimTitle")}</strong>
+            <small>{t("deviceTransferHomeHint")}</small>
+          </div>
+          <button type="button" onClick={openDeviceTransfer}>
+            {t("deviceTransferOpenClaim")}
+          </button>
+        </section>
+      )}
       <section className="lobby-list">
         <h2>{t("openLobbies")}</h2>
         {!lobbies.length ? (

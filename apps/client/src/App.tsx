@@ -50,6 +50,14 @@ const RulesContent = lazy(() =>
     default: module.RulesContent,
   })),
 );
+const DeviceTransferDialog = lazy(() =>
+  import("./components/device-transfer").then((module) => ({
+    default: module.DeviceTransferDialog,
+  })),
+);
+
+const initialDeviceTransferCode =
+  new URLSearchParams(location.search).get("transfer")?.trim() ?? "";
 
 function actionCueKey(game: AnyGameView | undefined, playerId: string): string {
   if (!game || !playerId) return "";
@@ -146,6 +154,14 @@ export function App() {
   const [events, setEvents] = useState<StructuredEvent[]>([]);
   const [retainedLobby, setRetainedLobby] = useState<RetainedLobby | undefined>(
     loadRetainedLobby,
+  );
+  const [incomingTransferCode, setIncomingTransferCode] = useState(
+    initialDeviceTransferCode,
+  );
+  const [deviceTransferMode, setDeviceTransferMode] = useState<
+    "send" | "receive" | undefined
+  >(() =>
+    initialDeviceTransferCode && !retainedLobby ? "receive" : undefined,
   );
   const [restoringSession, setRestoringSession] = useState(() => {
     const code = invitationCode();
@@ -288,6 +304,21 @@ export function App() {
         announceRef.current(message);
       }
     };
+    const onTransferred = () => {
+      const currentLobby = lobbyRef.current;
+      if (currentLobby) localStorage.removeItem(sessionKey(currentLobby.code));
+      localStorage.removeItem(retainedLobbyStorageKey);
+      setRetainedLobby(undefined);
+      setLobby(undefined);
+      setPlayerId("");
+      setEvents([]);
+      setWarning(undefined);
+      setHistoryOpen(false);
+      setSelectedRommeVariant(undefined);
+      setDeviceTransferMode(undefined);
+      history.replaceState({}, "", location.pathname);
+      setInfo(translateRef.current("deviceTransferCompletedOldDevice"));
+    };
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("lobby:list", setLobbies);
@@ -295,6 +326,7 @@ export function App() {
     socket.on("lobby:closed", onClosed);
     socket.on("lobby:warning", ({ closesAt }) => setWarning(closesAt));
     socket.on("game:event", onEvent);
+    socket.on("session:transferred", onTransferred);
     if (socket.connected) onConnect();
     return () => {
       socket.off("connect", onConnect);
@@ -304,8 +336,18 @@ export function App() {
       socket.off("lobby:closed", onClosed);
       socket.off("lobby:warning");
       socket.off("game:event", onEvent);
+      socket.off("session:transferred", onTransferred);
     };
   }, []);
+
+  useEffect(() => {
+    if (!incomingTransferCode || lobby || deviceTransferMode) return;
+    if (retainedLobby) {
+      setError("transfer_requires_free_device");
+      return;
+    }
+    setDeviceTransferMode("receive");
+  }, [deviceTransferMode, incomingTransferCode, lobby, retainedLobby]);
 
   useEffect(() => {
     const code = lobby?.code;
@@ -612,6 +654,7 @@ export function App() {
               setSelectedRommeVariant={setSelectedRommeVariant}
               command={command}
               announce={announce}
+              openDeviceTransfer={() => setDeviceTransferMode("send")}
             />
           </Suspense>
         ) : (
@@ -621,6 +664,7 @@ export function App() {
             retainedLobby={retainedLobby}
             resumeRetainedLobby={resumeRetainedLobby}
             permanentlyLeaveRetainedLobby={permanentlyLeaveRetainedLobby}
+            openDeviceTransfer={() => setDeviceTransferMode("receive")}
           />
         )}
       </main>
@@ -658,6 +702,42 @@ export function App() {
             />
           </Suspense>
         </Dialog>
+      )}
+      {deviceTransferMode && (
+        <Suspense fallback={null}>
+          <DeviceTransferDialog
+            mode={deviceTransferMode}
+            initialCode={
+              deviceTransferMode === "receive" ? incomingTransferCode : ""
+            }
+            close={() => {
+              setDeviceTransferMode(undefined);
+              setIncomingTransferCode("");
+              const url = new URL(location.href);
+              url.searchParams.delete("transfer");
+              history.replaceState(
+                {},
+                "",
+                `${url.pathname}${url.search}${url.hash}`,
+              );
+            }}
+            onClaimed={(result) => {
+              if (!result.code || !result.token || !result.playerId) {
+                setError("unknown_error");
+                return;
+              }
+              setRestoringSession(true);
+              localStorage.setItem(sessionKey(result.code), result.token);
+              if (result.playerName)
+                localStorage.setItem(storageKeys.playerName, result.playerName);
+              setPlayerId(result.playerId);
+              setIncomingTransferCode("");
+              setDeviceTransferMode(undefined);
+              history.replaceState({}, "", `?lobby=${result.code}`);
+            }}
+            announce={announce}
+          />
+        </Suspense>
       )}
     </div>
   );

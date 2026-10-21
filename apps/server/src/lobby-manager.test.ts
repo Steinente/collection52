@@ -163,6 +163,91 @@ describe("LobbyManager", () => {
     ).toHaveLength(1);
     manager.stop();
   });
+  it("transfers a running session without changing the player or emitting presence events", async () => {
+    const h = hooks();
+    const manager = new LobbyManager(h);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "old-socket",
+    );
+    await manager.join(made.lobby, "Ben", undefined, "ben-socket");
+    manager.start(made.lobby, made.player.id);
+    const eventCount = h.event.mock.calls.length;
+    const changedCount = h.changed.mock.calls.length;
+
+    const transfer = manager.createDeviceTransfer(made.lobby, made.player);
+    expect(transfer.transferCode).toMatch(
+      /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/,
+    );
+    const claimed = manager.claimDeviceTransfer(
+      transfer.transferCode.replace("-", ""),
+      "new-socket",
+    );
+
+    expect(claimed.player.id).toBe(made.player.id);
+    expect(claimed.player.name).toBe("Anna");
+    expect(claimed.previousSocketIds).toEqual(["old-socket"]);
+    expect(claimed.player.socketIds).toEqual(new Set(["new-socket"]));
+    expect(manager.playerForToken(made.lobby, claimed.token)?.id).toBe(
+      made.player.id,
+    );
+    expect(manager.playerForToken(made.lobby, made.token)).toBeUndefined();
+    expect(h.event).toHaveBeenCalledTimes(eventCount);
+    expect(h.changed).toHaveBeenCalledTimes(changedCount);
+    expect(() =>
+      manager.claimDeviceTransfer(
+        transfer.transferCode.replace("-", ""),
+        "third-socket",
+      ),
+    ).toThrow("invalid_transfer_code");
+    manager.stop();
+  });
+  it("expires, cancels, and regenerates device transfer codes using server time", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-21T18:00:00Z"));
+    const manager = new LobbyManager(
+      hooks(),
+      30 * 60_000,
+      5 * 60_000,
+      5_000,
+      60_000,
+    );
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    await manager.join(made.lobby, "Ben", undefined, "s2");
+    manager.start(made.lobby, made.player.id);
+
+    const first = manager.createDeviceTransfer(made.lobby, made.player);
+    expect(first.expiresAt - first.serverTime).toBe(60_000);
+    vi.advanceTimersByTime(10_000);
+    const reopened = manager.createDeviceTransfer(made.lobby, made.player);
+    expect(reopened.transferCode).toBe(first.transferCode);
+    expect(reopened.expiresAt).toBe(first.expiresAt);
+    expect(reopened.serverTime).toBe(first.serverTime + 10_000);
+
+    manager.cancelDeviceTransfer(made.player.id);
+    expect(() =>
+      manager.claimDeviceTransfer(reopened.transferCode.replace("-", ""), "s3"),
+    ).toThrow("invalid_transfer_code");
+
+    const replacement = manager.createDeviceTransfer(made.lobby, made.player);
+    expect(replacement.transferCode).not.toBe(first.transferCode);
+
+    manager.cancelDeviceTransfer(made.player.id);
+    const expiring = manager.createDeviceTransfer(made.lobby, made.player);
+    vi.setSystemTime(expiring.expiresAt + 1);
+    expect(() =>
+      manager.claimDeviceTransfer(expiring.transferCode.replace("-", ""), "s3"),
+    ).toThrow("transfer_code_expired");
+    const fresh = manager.createDeviceTransfer(made.lobby, made.player);
+    expect(fresh.transferCode).not.toBe(expiring.transferCode);
+    manager.stop();
+    vi.useRealTimers();
+  });
   it("retains a detached guest and only removes them after a permanent leave", async () => {
     const h = hooks();
     const manager = new LobbyManager(h);

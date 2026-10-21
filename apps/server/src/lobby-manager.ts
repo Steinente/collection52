@@ -91,16 +91,33 @@ const safeCode = () =>
     .toUpperCase()
     .replace(/[01ILO_-]/g, "X")
     .slice(0, 8);
+const transferAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const transferCode = () =>
+  [...randomBytes(8)]
+    .map((value) => transferAlphabet[value % transferAlphabet.length])
+    .join("");
+const formatTransferCode = (code: string) =>
+  `${code.slice(0, 4)}-${code.slice(4)}`;
+
+type DeviceTransfer = {
+  code: string;
+  lobby: Lobby;
+  player: LobbyPlayer;
+  expiresAt: number;
+};
 
 export class LobbyManager {
   readonly lobbies = new Map<string, Lobby>();
   private cleanupTimer?: NodeJS.Timeout;
   private readonly offlineTimers = new Map<string, NodeJS.Timeout>();
+  private readonly deviceTransfers = new Map<string, DeviceTransfer>();
+  private readonly transferCodesByPlayer = new Map<string, string>();
   constructor(
     private hooks: ManagerHooks,
     private idleMs = 30 * 60_000,
     private warningMs = 5 * 60_000,
     private disconnectGraceMs = 5_000,
+    private deviceTransferTtlMs = 60_000,
   ) {
     this.cleanupTimer = setInterval(() => this.cleanup(), 30_000);
     this.cleanupTimer.unref();
@@ -109,6 +126,8 @@ export class LobbyManager {
     if (this.cleanupTimer) clearInterval(this.cleanupTimer);
     for (const timer of this.offlineTimers.values()) clearTimeout(timer);
     this.offlineTimers.clear();
+    this.deviceTransfers.clear();
+    this.transferCodesByPlayer.clear();
   }
   private token() {
     return randomBytes(32).toString("base64url");
@@ -195,6 +214,88 @@ export class LobbyManager {
     return lobby.players.find(
       (player) => player.tokenHash === hashToken(token),
     );
+  }
+  private removeDeviceTransfer(code: string) {
+    const transfer = this.deviceTransfers.get(code);
+    if (!transfer) return;
+    this.deviceTransfers.delete(code);
+    if (this.transferCodesByPlayer.get(transfer.player.id) === code)
+      this.transferCodesByPlayer.delete(transfer.player.id);
+  }
+  private removeExpiredDeviceTransfers(now = Date.now()) {
+    for (const transfer of this.deviceTransfers.values())
+      if (transfer.expiresAt <= now) this.removeDeviceTransfer(transfer.code);
+  }
+  cancelDeviceTransfer(playerId: string) {
+    const code = this.transferCodesByPlayer.get(playerId);
+    if (code) this.removeDeviceTransfer(code);
+  }
+  createDeviceTransfer(lobby: Lobby, player: LobbyPlayer) {
+    if (lobby.closed || !lobby.players.includes(player))
+      throw new Error("not_in_lobby");
+    if (lobby.status !== "playing") throw new Error("game_not_started");
+    const now = Date.now();
+    this.removeExpiredDeviceTransfers(now);
+    const activeCode = this.transferCodesByPlayer.get(player.id);
+    const activeTransfer = activeCode
+      ? this.deviceTransfers.get(activeCode)
+      : undefined;
+    if (activeTransfer) {
+      return {
+        transferCode: formatTransferCode(activeTransfer.code),
+        expiresAt: activeTransfer.expiresAt,
+        serverTime: now,
+      };
+    }
+    let code = transferCode();
+    while (this.deviceTransfers.has(code)) code = transferCode();
+    const transfer: DeviceTransfer = {
+      code,
+      lobby,
+      player,
+      expiresAt: now + this.deviceTransferTtlMs,
+    };
+    this.deviceTransfers.set(code, transfer);
+    this.transferCodesByPlayer.set(player.id, code);
+    this.touch(lobby);
+    return {
+      transferCode: formatTransferCode(code),
+      expiresAt: transfer.expiresAt,
+      serverTime: now,
+    };
+  }
+  claimDeviceTransfer(code: string, socketId: string) {
+    const now = Date.now();
+    const transfer = this.deviceTransfers.get(code);
+    if (!transfer) throw new Error("invalid_transfer_code");
+    if (transfer.expiresAt <= now) {
+      this.removeDeviceTransfer(code);
+      throw new Error("transfer_code_expired");
+    }
+    this.removeDeviceTransfer(code);
+    const { lobby, player } = transfer;
+    if (lobby.closed || !lobby.players.includes(player))
+      throw new Error("invalid_transfer_code");
+
+    const previousSocketIds = [...player.socketIds].filter(
+      (id) => id !== socketId,
+    );
+    const wasConnected = player.connected;
+    const offlineTimer = this.offlineTimers.get(player.id);
+    if (offlineTimer) clearTimeout(offlineTimer);
+    this.offlineTimers.delete(player.id);
+    player.socketIds.clear();
+    player.socketIds.add(socketId);
+    player.connected = true;
+    const gamePlayer = lobby.game?.players.find(
+      (candidate) => candidate.id === player.id,
+    );
+    if (gamePlayer) gamePlayer.connected = true;
+    const token = this.token();
+    player.tokenHash = hashToken(token);
+    this.touch(lobby);
+    if (!wasConnected) this.hooks.changed(lobby);
+    return { lobby, player, token, previousSocketIds };
   }
   async hashPassword(password: string, salt = randomBytes(16).toString("hex")) {
     return {
@@ -528,6 +629,7 @@ export class LobbyManager {
     const playerName =
       lobby.players.find((player) => player.id === playerId)?.name ?? "";
     if (!playerName) throw new Error("not_in_lobby");
+    this.cancelDeviceTransfer(playerId);
     const offlineTimer = this.offlineTimers.get(playerId);
     if (offlineTimer) {
       clearTimeout(offlineTimer);
@@ -568,6 +670,7 @@ export class LobbyManager {
     if (lobby.closed) return;
     lobby.closed = true;
     for (const player of lobby.players) {
+      this.cancelDeviceTransfer(player.id);
       const timer = this.offlineTimers.get(player.id);
       if (timer) clearTimeout(timer);
       this.offlineTimers.delete(player.id);
@@ -578,6 +681,7 @@ export class LobbyManager {
     this.hooks.listChanged();
   }
   cleanup(now = Date.now()) {
+    this.removeExpiredDeviceTransfers(now);
     for (const lobby of this.lobbies.values()) {
       const remaining = lobby.activityAt + this.idleMs - now;
       if (remaining <= 0) this.close(lobby, "inactive");

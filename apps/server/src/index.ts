@@ -9,6 +9,7 @@ import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import {
   actionSchema,
+  deviceTransferCodeSchema,
   lobbyCodeSchema,
   lobbySettingsSchema,
   lobbyUpdateSchema,
@@ -48,6 +49,7 @@ const rateLimitsEnabled =
   process.env.DISABLE_RATE_LIMITS !== "true";
 const createLimit = new SlidingRateLimit(10, 60 * 60_000);
 const joinLimit = new SlidingRateLimit(30, 10 * 60_000);
+const transferClaimLimit = new SlidingRateLimit(20, 5 * 60_000);
 const sessions = new Map<string, { lobby: Lobby; player: LobbyPlayer }>();
 
 const broadcastList = () => io.emit("lobby:list", manager.list());
@@ -287,6 +289,58 @@ io.on("connection", (socket) => {
     try {
       session(socket);
       ack({ ok: true });
+    } catch (e) {
+      ack(fail(e));
+    }
+  });
+  socket.on("session:transfer:create", (ack) => {
+    try {
+      const s = session(socket);
+      const transfer = manager.createDeviceTransfer(s.lobby, s.player);
+      ack({ ok: true, ...transfer });
+    } catch (e) {
+      ack(fail(e));
+    }
+  });
+  socket.on("session:transfer:cancel", (ack) => {
+    try {
+      const s = session(socket);
+      manager.cancelDeviceTransfer(s.player.id);
+      ack({ ok: true });
+    } catch (e) {
+      ack(fail(e));
+    }
+  });
+  socket.on("session:transfer:claim", (raw, ack) => {
+    try {
+      if (sessions.has(socket.id)) throw new Error("already_in_lobby");
+      if (
+        rateLimitsEnabled &&
+        !transferClaimLimit.allow(socket.handshake.address)
+      )
+        throw new Error("rate_limited");
+      const code = deviceTransferCodeSchema.parse(
+        z.object({ transferCode: z.string() }).parse(raw).transferCode,
+      );
+      const claimed = manager.claimDeviceTransfer(code, socket.id);
+      attach(socket, claimed.lobby, claimed.player);
+      for (const previousSocketId of claimed.previousSocketIds) {
+        sessions.delete(previousSocketId);
+        const previousSocket = io.sockets.sockets.get(previousSocketId);
+        previousSocket?.leave(claimed.lobby.code);
+        previousSocket?.emit("session:transferred");
+      }
+      ack({
+        ok: true,
+        code: claimed.lobby.code,
+        token: claimed.token,
+        playerId: claimed.player.id,
+        playerName: claimed.player.name,
+      });
+      socket.emit(
+        "lobby:state",
+        manager.view(claimed.lobby, claimed.player.id),
+      );
     } catch (e) {
       ack(fail(e));
     }

@@ -170,9 +170,21 @@ export type AckResult = {
   code?: string;
   token?: string;
   playerId?: string;
+  playerName?: string;
   passwordProtected?: boolean;
   joinable?: boolean;
+  transferCode?: string;
+  expiresAt?: number;
+  serverTime?: number;
 };
+
+export const deviceTransferCodeSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.toUpperCase().replace(/[\s-]/g, ""))
+  .refine((value) => /^[A-HJ-NP-Z2-9]{8}$/.test(value), {
+    message: "invalid_transfer_code",
+  });
 
 export interface ClientToServerEvents {
   "lobby:list": (ack: (data: LobbySummary[]) => void) => void;
@@ -186,6 +198,12 @@ export interface ClientToServerEvents {
   "lobby:close": (ack: (result: AckResult) => void) => void;
   "lobby:keepalive": (ack: (result: AckResult) => void) => void;
   "presence:active": (ack: (result: AckResult) => void) => void;
+  "session:transfer:create": (ack: (result: AckResult) => void) => void;
+  "session:transfer:cancel": (ack: (result: AckResult) => void) => void;
+  "session:transfer:claim": (
+    data: unknown,
+    ack: (result: AckResult) => void,
+  ) => void;
   "game:start": (ack: (result: AckResult) => void) => void;
   "game:restart": (ack: (result: AckResult) => void) => void;
   "game:action": (data: unknown, ack: (result: AckResult) => void) => void;
@@ -197,4 +215,5 @@ export interface ServerToClientEvents {
   "lobby:warning": (data: { closesAt: number }) => void;
   "game:event": (data: StructuredEvent) => void;
   "error:message": (data: { code: string }) => void;
+  "session:transferred": () => void;
 }

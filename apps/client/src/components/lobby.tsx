@@ -34,6 +34,7 @@ export function LobbyView({
   setSelectedRommeVariant,
   command,
   announce,
+  openDeviceTransfer,
 }: {
   lobby: PublicLobby;
   playerId: string;
@@ -55,6 +56,7 @@ export function LobbyView({
       | "lobby:keepalive",
   ) => void;
   announce: (s: string) => void;
+  openDeviceTransfer: () => void;
 }) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<string[]>([]);
@@ -158,6 +160,29 @@ export function LobbyView({
             <span className="game-context-code">
               {t("lobby", { code: lobby.code })}
             </span>
+            <button
+              className="game-context-transfer"
+              type="button"
+              aria-label={t("deviceTransferButton")}
+              onClick={openDeviceTransfer}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="8" height="14" rx="2" />
+                <rect x="13" y="7" width="8" height="14" rx="2" />
+                <path d="m9 12 2-2 2 2M15 12l-2 2-2-2" />
+              </svg>
+              <span className="game-context-transfer-label">
+                {t("deviceTransferButton")}
+              </span>
+            </button>
           </div>
         ) : (
           <>
