@@ -11,6 +11,7 @@ import type {
   SchwimmenGameView,
 } from "../models";
 import { socket } from "../socket";
+import { useConfirmation, useConfirmationChoice } from "./confirmation-dialog";
 import {
   DurakBoard,
   MauMauBoard,
@@ -47,6 +48,7 @@ export function LobbyView({
   command,
   announce,
   openDeviceTransfer,
+  permanentlyLeave,
 }: {
   lobby: PublicLobby;
   playerId: string;
@@ -69,8 +71,11 @@ export function LobbyView({
   ) => void;
   announce: (s: string) => void;
   openDeviceTransfer: () => void;
+  permanentlyLeave: () => void;
 }) {
   const { t } = useTranslation();
+  const confirmAction = useConfirmation();
+  const chooseAction = useConfirmationChoice();
   const [selected, setSelected] = useState<string[]>([]);
   const [target, setTarget] = useState("");
   const [copiedAction, setCopiedAction] = useState<"code" | "link" | null>(
@@ -325,9 +330,14 @@ export function LobbyView({
                     type="button"
                     aria-label={t("kickPlayerLabel", { name: p.name })}
                     title={t("kickPlayerLabel", { name: p.name })}
-                    onClick={() => {
-                      if (!confirm(t("confirmKickPlayer", { name: p.name })))
-                        return;
+                    onClick={async () => {
+                      const confirmed = await confirmAction({
+                        title: t("kickPlayerLabel", { name: p.name }),
+                        message: t("confirmKickPlayer", { name: p.name }),
+                        confirmLabel: t("kickPlayer"),
+                        tone: "danger",
+                      });
+                      if (!confirmed) return;
                       socket.emit(
                         "lobby:kick",
                         { playerId: p.id },
@@ -521,8 +531,14 @@ export function LobbyView({
         <div className="button-row">
           {isHost && game && (
             <button
-              onClick={() => {
-                if (confirm(t("confirmClose"))) command("game:restart");
+              onClick={async () => {
+                const confirmed = await confirmAction({
+                  title: t("restartGame"),
+                  message: t("confirmRestart"),
+                  confirmLabel: t("restartGame"),
+                  tone: "danger",
+                });
+                if (confirmed) command("game:restart");
               }}
             >
               {t("restartGame")}
@@ -530,19 +546,32 @@ export function LobbyView({
           )}{" "}
           {!isHost && (
             <button
-              onClick={() => {
-                if (confirm(t("confirmTemporaryLeave")))
-                  command("lobby:detach");
+              onClick={async () => {
+                const choice = await chooseAction({
+                  title: t("leaveLobby"),
+                  message: t("confirmTemporaryLeave"),
+                  confirmLabel: t("returnToHome"),
+                  alternativeLabel: t("leavePermanently"),
+                  alternativeTone: "danger",
+                });
+                if (choice === "confirm") command("lobby:detach");
+                if (choice === "alternative") permanentlyLeave();
               }}
             >
-              {t("leaveLobby")}
+              {t("returnToHome")}
             </button>
           )}{" "}
           {isHost && (
             <button
               className="danger"
-              onClick={() => {
-                if (confirm(t("confirmClose"))) command("lobby:close");
+              onClick={async () => {
+                const confirmed = await confirmAction({
+                  title: t("closeLobby"),
+                  message: t("confirmClose"),
+                  confirmLabel: t("closeLobby"),
+                  tone: "danger",
+                });
+                if (confirmed) command("lobby:close");
               }}
             >
               {t("closeLobby")}

@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -592,13 +593,18 @@ export function Dialog({
   title,
   close,
   children,
+  className,
+  role,
 }: {
   title: string;
   close: () => void;
   children: ReactNode;
+  className?: string;
+  role?: "dialog" | "alertdialog";
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     ref.current?.showModal();
@@ -613,6 +619,9 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
+      className={className}
+      role={role}
+      aria-labelledby={titleId}
       onCancel={close}
       onClick={(event) => {
         const bounds = event.currentTarget.getBoundingClientRect();
@@ -626,7 +635,7 @@ export function Dialog({
     >
       <div className="dialog-message-layer" />
       <div className="dialog-head">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button
           className="icon-close"
           type="button"

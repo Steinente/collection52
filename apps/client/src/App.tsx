@@ -28,6 +28,7 @@ import {
 } from "./client-config";
 import type { Ack, AnyGameView, Preferences, RetainedLobby } from "./models";
 import { Home } from "./components/home";
+import { useConfirmation } from "./components/confirmation-dialog";
 import {
   Dialog,
   Footer,
@@ -162,6 +163,7 @@ async function playTurnCue(contextRef: {
 
 export function App() {
   const { t, i18n } = useTranslation();
+  const confirmAction = useConfirmation();
   const legalPage = (
     { "/impressum": "imprint", "/datenschutz": "privacy" } as Record<
       string,
@@ -519,8 +521,15 @@ export function App() {
       },
     );
   };
-  const permanentlyLeaveRetainedLobby = () => {
-    if (!retainedLobby || !confirm(t("confirmPermanentLeave"))) return;
+  const permanentlyLeaveRetainedLobby = async () => {
+    if (!retainedLobby) return;
+    const confirmed = await confirmAction({
+      title: t("leavePermanently"),
+      message: t("confirmPermanentLeave"),
+      confirmLabel: t("leavePermanently"),
+      tone: "danger",
+    });
+    if (!confirmed) return;
     const token = localStorage.getItem(sessionKey(retainedLobby.code));
     if (!token) {
       forgetRetainedLobby(retainedLobby.code);
@@ -538,6 +547,33 @@ export function App() {
         setInfo(t("permanentlyLeftNotice"));
       },
     );
+  };
+  const permanentlyLeaveCurrentLobby = () => {
+    if (!lobby) return;
+    const code = lobby.code;
+    const token = localStorage.getItem(sessionKey(code));
+    const finishLeaving = () => {
+      forgetRetainedLobby(code);
+      setLobby(undefined);
+      setPlayerId("");
+      setEvents([]);
+      setWarning(undefined);
+      setHistoryOpen(false);
+      setSelectedRommeVariant(undefined);
+      history.replaceState({}, "", location.pathname);
+      setInfo(t("permanentlyLeftNotice"));
+    };
+    if (!token) {
+      finishLeaving();
+      return;
+    }
+    socket.emit("lobby:leave", { code, token }, (result) => {
+      if (!result.ok && result.error !== "lobby_not_found") {
+        setError(result.error ?? "unknown_error");
+        return;
+      }
+      finishLeaving();
+    });
   };
   const game = lobby?.game as AnyGameView | undefined;
   const { protocolEntries, protocolOpen, setProtocolOpen } = useGameProtocol({
@@ -718,6 +754,7 @@ export function App() {
               command={command}
               announce={announce}
               openDeviceTransfer={() => setDeviceTransferMode("send")}
+              permanentlyLeave={permanentlyLeaveCurrentLobby}
             />
           </Suspense>
         ) : (
