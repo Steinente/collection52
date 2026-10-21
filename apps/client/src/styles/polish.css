@@ -1288,3 +1288,156 @@ input[type="range"] {
   transform: scale(0.94);
   box-shadow: none;
 }
+
+.loading-state {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  width: min(30rem, 100%);
+  min-height: clamp(20rem, 54dvh, 32rem);
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 4rem);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: clamp(1.25rem, 3vw, 2rem);
+  background:
+    radial-gradient(
+      circle at 50% 32%,
+      color-mix(in srgb, var(--accent) 15%, transparent) 0,
+      transparent 45%
+    ),
+    color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow:
+    0 1.4rem 3.5rem rgba(0, 0, 0, 0.16),
+    inset 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+  text-align: center;
+}
+.loading-state::before {
+  position: absolute;
+  z-index: -1;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  filter: blur(3.5rem);
+  content: "";
+}
+.loading-card-mark {
+  display: grid;
+  place-items: center;
+  width: 5.75rem;
+  height: 6.8rem;
+  margin-bottom: 1.4rem;
+  animation: loading-card-float 1.8s ease-in-out infinite;
+}
+.loading-brand-card {
+  flex: none;
+  transform: rotate(-5deg) scale(3);
+  transform-origin: center;
+}
+.loading-state-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+.loading-state-copy strong {
+  font-size: clamp(1.3rem, 4vw, 1.7rem);
+  letter-spacing: -0.035em;
+}
+.loading-state-copy span {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.loading-progress {
+  width: min(10rem, 56vw);
+  height: 0.25rem;
+  margin-top: 1.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--border));
+}
+.loading-progress > span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  box-shadow: 0 0 0.8rem var(--accent);
+  animation: loading-progress-slide 1.35s ease-in-out infinite;
+}
+.loading-state-compact {
+  min-height: 15rem;
+  width: 100%;
+  padding: 2rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.loading-state-compact .loading-card-mark {
+  scale: 0.82;
+  margin-bottom: 0.75rem;
+}
+@keyframes loading-card-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.4rem);
+  }
+}
+@keyframes loading-progress-slide {
+  0% {
+    transform: translateX(-105%);
+  }
+  50% {
+    transform: translateX(140%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+@media (max-width: 560px) {
+  .loading-state {
+    width: 100%;
+    min-height: min(28rem, 58dvh);
+    padding: 2rem 1rem;
+    border-radius: 1.25rem;
+  }
+  .loading-card-mark {
+    scale: 0.9;
+    margin-bottom: 1rem;
+  }
+}
+@media (max-height: 620px) {
+  .loading-state {
+    min-height: 16rem;
+    padding-block: 1.5rem;
+  }
+  .loading-card-mark {
+    scale: 0.78;
+    margin-bottom: 0.6rem;
+  }
+  .loading-progress {
+    margin-top: 0.9rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-card-mark,
+  .loading-progress > span {
+    animation: none;
+  }
+  .loading-progress > span {
+    width: 100%;
+    opacity: 0.7;
+  }
+}
+.reduce-motion .loading-card-mark,
+.reduce-motion .loading-progress > span {
+  animation: none;
+}
+.reduce-motion .loading-progress > span {
+  width: 100%;
+  opacity: 0.7;
+}

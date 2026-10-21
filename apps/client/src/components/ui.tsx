@@ -11,6 +11,30 @@ import { useTranslation } from "react-i18next";
 import { defaultPreferences, validHexColor } from "../client-config";
 import type { Preferences } from "../models";
 
+export function LoadingState({ compact = false }: { compact?: boolean }) {
+  const { t } = useTranslation();
+
+  return (
+    <div
+      className={`loading-state${compact ? " loading-state-compact" : ""}`}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <div className="loading-card-mark" aria-hidden="true">
+        <span className="brand-card loading-brand-card">52</span>
+      </div>
+      <div className="loading-state-copy">
+        <strong>Collection52</strong>
+        <span>{t("loading")}</span>
+      </div>
+      <span className="loading-progress" aria-hidden="true">
+        <span />
+      </span>
+    </div>
+  );
+}
+
 export function TopLayerMessage({
   className,
   role,

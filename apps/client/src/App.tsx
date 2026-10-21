@@ -31,6 +31,7 @@ import { Home } from "./components/home";
 import {
   Dialog,
   Footer,
+  LoadingState,
   ResponsiveSelect,
   SettingsDialog,
   TopLayerMessage,
@@ -695,15 +696,13 @@ export function App() {
       )}
       <main id="main">
         {legalPage ? (
-          <Suspense fallback={<p className="legal-loading">{t("loading")}</p>}>
+          <Suspense fallback={<LoadingState />}>
             <LegalPage kind={legalPage} />
           </Suspense>
         ) : restoringSession ? (
-          <p className="legal-loading" role="status" aria-live="polite">
-            {t("loading")}
-          </p>
+          <LoadingState />
         ) : lobby ? (
-          <Suspense fallback={<p className="legal-loading">{t("loading")}</p>}>
+          <Suspense fallback={<LoadingState />}>
             <LobbyView
               lobby={lobby}
               playerId={playerId}
@@ -759,7 +758,7 @@ export function App() {
           )}
           close={() => setRulesOpen(false)}
         >
-          <Suspense fallback={<p className="legal-loading">{t("loading")}</p>}>
+          <Suspense fallback={<LoadingState compact />}>
             <RulesContent
               key={`romme-rules-${selectedRommeVariant ?? "classic"}`}
               gameId={lobby?.gameId ?? "durak"}

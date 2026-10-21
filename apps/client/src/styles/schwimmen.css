@@ -193,7 +193,6 @@
   content: "";
   pointer-events: none;
 }
-.legal-loading,
 .legal-page {
   width: min(820px, 100%);
   margin: 0 auto;
