@@ -568,6 +568,33 @@ button:disabled {
   top: -0.08rem;
   right: -0.08rem;
 }
+.player-host-mark {
+  position: absolute;
+  left: -0.22rem;
+  bottom: -0.2rem;
+  display: grid;
+  place-items: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 1.5px solid var(--surface-2);
+  border-radius: 50%;
+  color: #513200;
+  background: #f4bd42;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+.player-host-mark svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  overflow: visible;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.player-host-mark svg path:last-child {
+  fill: none;
+}
 .player-presence.offline {
   background: var(--danger);
   box-shadow: none;

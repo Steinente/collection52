@@ -289,14 +289,17 @@ export function LobbyView({
                   ? t("knackSwimming")
                   : t("knackLives", { count: knackPlayer.lives })
               : "";
-            const detailParts = [
+            const visibleDetailParts = [
               handCount !== undefined && lobby.gameId !== "schwimmen"
                 ? t("handCardsCount", { count: handCount })
                 : "",
               lifeDetail,
+            ].filter(Boolean);
+            const accessibleDetailParts = [
+              ...visibleDetailParts,
               p.isHost ? t("host") : "",
             ].filter(Boolean);
-            const details = detailParts.join(" · ");
+            const details = visibleDetailParts.join(" · ");
             const canKick = isHost && p.id !== playerId;
             return (
               <li
@@ -307,7 +310,7 @@ export function LobbyView({
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                aria-label={[p.name, ...detailParts].join(", ")}
+                aria-label={[p.name, ...accessibleDetailParts].join(", ")}
               >
                 <span className="player-avatar-wrap" aria-hidden="true">
                   <span
@@ -316,6 +319,14 @@ export function LobbyView({
                   >
                     {p.name.slice(0, 1).toUpperCase()}
                   </span>
+                  {p.isHost && (
+                    <span className="player-host-mark">
+                      <svg viewBox="0 0 16 16">
+                        <path d="m2.25 4.5 3.1 2.55L8 2.75l2.65 4.3 3.1-2.55-1.2 7H3.45l-1.2-7Z" />
+                        <path d="M3.7 13h8.6" />
+                      </svg>
+                    </span>
+                  )}
                   <i
                     className={`player-presence ${p.connected ? "online" : p.detached ? "away" : "offline"}`}
                   />
