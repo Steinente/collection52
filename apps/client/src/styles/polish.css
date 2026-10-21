@@ -281,10 +281,11 @@ button:disabled {
 .avatar {
   background: linear-gradient(
     145deg,
-    var(--accent),
-    color-mix(in srgb, var(--accent) 72%, #000)
+    var(--player-accent, #0f745d),
+    color-mix(in srgb, var(--player-accent, #0f745d) 72%, #000)
   );
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: 0 4px 12px
+    color-mix(in srgb, var(--player-accent, #0f745d) 20%, transparent);
 }
 .game-board {
   gap: 1.2rem;
@@ -558,9 +559,40 @@ button:disabled {
   background: #22c55e;
   box-shadow: 0 0 0 2px color-mix(in srgb, #22c55e 18%, transparent);
 }
+.player-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.player-avatar-wrap .player-presence {
+  top: -0.08rem;
+  right: -0.08rem;
+}
 .player-presence.offline {
   background: var(--danger);
   box-shadow: none;
+}
+.player-presence.away {
+  background: #fbbf24;
+  box-shadow: 0 0 0 2px rgb(251 191 36 / 0.18);
+}
+.players.compact li.kickable {
+  padding-right: 0.45rem;
+}
+.player-kick {
+  min-height: 1.8rem;
+  margin-left: 0.15rem;
+  padding: 0.28rem 0.5rem;
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface-2));
+  color: color-mix(in srgb, var(--danger) 82%, var(--text));
+  box-shadow: none;
+  font-size: 0.68rem;
+}
+.player-kick:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-2));
 }
 .players.compact li {
   position: relative;

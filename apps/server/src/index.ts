@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import {
+  accentColorSchema,
   actionSchema,
   deviceTransferCodeSchema,
   lobbyCodeSchema,
@@ -131,9 +132,18 @@ io.on("connection", (socket) => {
       if (rateLimitsEnabled && !createLimit.allow(socket.handshake.address))
         throw new Error("rate_limited");
       const data = z
-        .object({ name: usernameSchema, settings: lobbySettingsSchema })
+        .object({
+          name: usernameSchema,
+          settings: lobbySettingsSchema,
+          accentColor: accentColorSchema.default("#0f745d"),
+        })
         .parse(raw);
-      const made = await manager.create(data.name, data.settings, socket.id);
+      const made = await manager.create(
+        data.name,
+        data.settings,
+        socket.id,
+        data.accentColor,
+      );
       attach(socket, made.lobby, made.player);
       socket.emit("lobby:state", manager.view(made.lobby, made.player.id));
       ack({
@@ -155,6 +165,7 @@ io.on("connection", (socket) => {
           code: lobbyCodeSchema,
           name: usernameSchema,
           password: z.string().max(72).optional(),
+          accentColor: accentColorSchema.default("#0f745d"),
         })
         .parse(raw);
       const lobby = manager.find(data.code);
@@ -164,6 +175,7 @@ io.on("connection", (socket) => {
         data.name,
         data.password,
         socket.id,
+        data.accentColor,
       );
       attach(socket, lobby, joined.player);
       socket.emit("lobby:state", manager.view(lobby, joined.player.id));
@@ -251,6 +263,37 @@ io.on("connection", (socket) => {
         sessions.delete(socketId);
         io.sockets.sockets.get(socketId)?.leave(lobby.code);
       }
+      ack({ ok: true });
+    } catch (e) {
+      ack(fail(e));
+    }
+  });
+  socket.on("lobby:kick", (raw, ack) => {
+    try {
+      const { playerId } = z.object({ playerId: z.string().uuid() }).parse(raw);
+      const s = session(socket);
+      const target = s.lobby.players.find((player) => player.id === playerId);
+      if (!target) throw new Error("not_in_lobby");
+      const socketIds = [...target.socketIds];
+      manager.kick(s.lobby, s.player.id, playerId);
+      for (const targetSocketId of socketIds) {
+        sessions.delete(targetSocketId);
+        const targetSocket = io.sockets.sockets.get(targetSocketId);
+        targetSocket?.leave(s.lobby.code);
+        targetSocket?.emit("lobby:closed", { reason: "kicked" });
+      }
+      ack({ ok: true });
+    } catch (e) {
+      ack(fail(e));
+    }
+  });
+  socket.on("player:update", (raw, ack) => {
+    try {
+      const { accentColor } = z
+        .object({ accentColor: accentColorSchema })
+        .parse(raw);
+      const s = session(socket);
+      manager.updatePlayerAccent(s.lobby, s.player.id, accentColor);
       ack({ ok: true });
     } catch (e) {
       ack(fail(e));

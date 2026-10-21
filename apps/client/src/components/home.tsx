@@ -22,6 +22,7 @@ export function Home({
   resumeRetainedLobby,
   permanentlyLeaveRetainedLobby,
   openDeviceTransfer,
+  playerAccentColor,
 }: {
   lobbies: LobbySummary[];
   remember: (result: Ack) => void;
@@ -29,6 +30,7 @@ export function Home({
   resumeRetainedLobby: () => void;
   permanentlyLeaveRetainedLobby: () => void;
   openDeviceTransfer: () => void;
+  playerAccentColor: string;
 }) {
   const { t, i18n } = useTranslation();
   const invitedCode = useMemo(invitationCode, []);
@@ -185,7 +187,11 @@ export function Home({
             automaticJoinAttempted.current = true;
             socket.emit(
               "lobby:join",
-              { code, name: savedInvitationName },
+              {
+                code,
+                name: savedInvitationName,
+                accentColor: playerAccentColor,
+              },
               (joinResult) => rememberRef.current(joinResult),
             );
           }
@@ -196,7 +202,14 @@ export function Home({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [code, invitedCode, retainedLobby, savedInvitationName, validCode]);
+  }, [
+    code,
+    invitedCode,
+    playerAccentColor,
+    retainedLobby,
+    savedInvitationName,
+    validCode,
+  ]);
   const joinLobby = (joinCode: string, joinPassword = "") => {
     setNameTouched(true);
     if (retainedLobby || !validName) return;
@@ -206,6 +219,7 @@ export function Home({
       {
         code: joinCode,
         name,
+        accentColor: playerAccentColor,
         ...(joinPassword ? { password: joinPassword } : {}),
       },
       remember,
@@ -351,6 +365,7 @@ export function Home({
               "lobby:create",
               {
                 name,
+                accentColor: playerAccentColor,
                 settings: {
                   gameId: selectedGame,
                   maxPlayers: 4,

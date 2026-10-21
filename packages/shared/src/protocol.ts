@@ -14,6 +14,10 @@ export const lobbyCodeSchema = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z2-9]{8}$/);
+export const accentColorSchema = z
+  .string()
+  .regex(/^#[0-9a-f]{6}$/i)
+  .transform((color) => color.toLowerCase());
 export const gameIdSchema = z.enum(["durak", "schwimmen", "mau-mau", "romme"]);
 export const mauMauRulesSchema = z.object({
   stackSevens: z.boolean(),
@@ -141,6 +145,8 @@ export type PublicPlayer = {
   id: string;
   name: string;
   connected: boolean;
+  detached: boolean;
+  accentColor: string;
   isHost: boolean;
 };
 export type PublicLobby = LobbySummary & {
@@ -194,6 +200,8 @@ export interface ClientToServerEvents {
   "lobby:resume": (data: unknown, ack: (result: AckResult) => void) => void;
   "lobby:detach": (ack: (result: AckResult) => void) => void;
   "lobby:leave": (data: unknown, ack: (result: AckResult) => void) => void;
+  "lobby:kick": (data: unknown, ack: (result: AckResult) => void) => void;
+  "player:update": (data: unknown, ack: (result: AckResult) => void) => void;
   "lobby:update": (data: unknown, ack: (result: AckResult) => void) => void;
   "lobby:close": (ack: (result: AckResult) => void) => void;
   "lobby:keepalive": (ack: (result: AckResult) => void) => void;

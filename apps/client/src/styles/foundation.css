@@ -283,8 +283,8 @@ select {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--player-accent, #0f745d);
+  color: var(--player-accent-contrast, #fff);
   font-weight: 900;
 }
 .waiting-room,

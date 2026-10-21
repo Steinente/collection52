@@ -413,7 +413,7 @@ button.primary {
   color: var(--accent-contrast);
 }
 .avatar {
-  color: var(--accent-contrast);
+  color: var(--player-accent-contrast, var(--accent-contrast));
 }
 .check input[type="checkbox"]::after {
   border-color: var(--accent-contrast);

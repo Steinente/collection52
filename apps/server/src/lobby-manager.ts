@@ -40,6 +40,8 @@ export type LobbyPlayer = {
   name: string;
   tokenHash: string;
   connected: boolean;
+  detached: boolean;
+  accentColor: string;
   socketIds: Set<string>;
   joinedAt: number;
   isHost: boolean;
@@ -193,6 +195,8 @@ export class LobbyManager {
         id: p.id,
         name: p.name,
         connected: p.connected,
+        detached: p.detached,
+        accentColor: p.accentColor,
         isHost: p.isHost,
       })),
       deckSize: lobby.deckSize,
@@ -287,6 +291,7 @@ export class LobbyManager {
     player.socketIds.clear();
     player.socketIds.add(socketId);
     player.connected = true;
+    player.detached = false;
     const gamePlayer = lobby.game?.players.find(
       (candidate) => candidate.id === player.id,
     );
@@ -313,7 +318,12 @@ export class LobbyManager {
       Buffer.from(lobby.passwordHash, "hex"),
     );
   }
-  async create(name: string, settings: CreateLobbySettings, socketId: string) {
+  async create(
+    name: string,
+    settings: CreateLobbySettings,
+    socketId: string,
+    accentColor = "#0f745d",
+  ) {
     let code = safeCode();
     while (this.lobbies.has(code)) code = safeCode();
     const token = this.token();
@@ -324,6 +334,8 @@ export class LobbyManager {
       name,
       tokenHash: hashToken(token),
       connected: true,
+      detached: false,
+      accentColor,
       socketIds: new Set([socketId]),
       joinedAt: now,
       isHost: true,
@@ -369,6 +381,7 @@ export class LobbyManager {
     name: string,
     password: string | undefined,
     socketId: string,
+    accentColor = "#0f745d",
   ) {
     if (lobby.closed) throw new Error("lobby_closed");
     if (!(await this.passwordMatches(lobby, password)))
@@ -391,6 +404,8 @@ export class LobbyManager {
       name,
       tokenHash: hashToken(token),
       connected: true,
+      detached: false,
+      accentColor,
       socketIds: new Set([socketId]),
       joinedAt: Date.now(),
       isHost: false,
@@ -415,6 +430,7 @@ export class LobbyManager {
       this.offlineTimers.delete(player.id);
     }
     player.socketIds.add(socketId);
+    player.detached = false;
     if (player.connected) return;
     player.connected = true;
     const gamePlayer = lobby.game?.players.find(
@@ -622,10 +638,17 @@ export class LobbyManager {
     if (!player) throw new Error("not_in_lobby");
     if (socketId) player.socketIds.delete(socketId);
     else player.socketIds.clear();
-    if (player.socketIds.size === 0) this.markDisconnected(lobby, player);
+    if (player.socketIds.size === 0) {
+      player.detached = true;
+      this.markDisconnected(lobby, player);
+    }
   }
-  leave(lobby: Lobby, playerId: string) {
-    if (lobby.hostId === playerId) throw new Error("host_must_close");
+  private removePlayer(
+    lobby: Lobby,
+    playerId: string,
+    eventType: "player.left" | "player.kicked",
+    actorId: string,
+  ) {
     const playerName =
       lobby.players.find((player) => player.id === playerId)?.name ?? "";
     if (!playerName) throw new Error("not_in_lobby");
@@ -654,12 +677,29 @@ export class LobbyManager {
     }
     lobby.players = lobby.players.filter((p) => p.id !== playerId);
     this.touch(lobby);
-    this.event(lobby, "player.left", playerId, {
+    this.event(lobby, eventType, actorId, {
       name: playerName,
+      playerId,
       gameEffect,
     });
     this.hooks.changed(lobby);
     this.hooks.listChanged();
+  }
+  leave(lobby: Lobby, playerId: string) {
+    if (lobby.hostId === playerId) throw new Error("host_must_close");
+    this.removePlayer(lobby, playerId, "player.left", playerId);
+  }
+  kick(lobby: Lobby, hostId: string, playerId: string) {
+    if (lobby.hostId !== hostId) throw new Error("host_only");
+    if (playerId === lobby.hostId) throw new Error("host_must_close");
+    this.removePlayer(lobby, playerId, "player.kicked", hostId);
+  }
+  updatePlayerAccent(lobby: Lobby, playerId: string, accentColor: string) {
+    const player = lobby.players.find((candidate) => candidate.id === playerId);
+    if (!player) throw new Error("not_in_lobby");
+    if (player.accentColor === accentColor) return;
+    player.accentColor = accentColor;
+    this.hooks.changed(lobby);
   }
   keepAlive(lobby: Lobby, playerId: string) {
     this.touch(lobby);

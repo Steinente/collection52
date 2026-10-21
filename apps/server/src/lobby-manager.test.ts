@@ -260,6 +260,12 @@ describe("LobbyManager", () => {
     manager.detach(made.lobby, joined.player.id);
     expect(made.lobby.players).toHaveLength(2);
     expect(joined.player.connected).toBe(false);
+    expect(joined.player.detached).toBe(true);
+    expect(
+      manager
+        .view(made.lobby, made.player.id)
+        .players.find((player) => player.id === joined.player.id)?.detached,
+    ).toBe(true);
     expect(manager.playerForToken(made.lobby, joined.token)?.id).toBe(
       joined.player.id,
     );
@@ -272,6 +278,68 @@ describe("LobbyManager", () => {
         data: expect.objectContaining({ name: "Ben" }),
       }),
     );
+    manager.stop();
+  });
+  it("allows only the host to kick another player and invalidates their seat", async () => {
+    const h = hooks();
+    const manager = new LobbyManager(h);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    const joined = await manager.join(made.lobby, "Ben", undefined, "s2");
+
+    expect(() =>
+      manager.kick(made.lobby, joined.player.id, made.player.id),
+    ).toThrow("host_only");
+    manager.kick(made.lobby, made.player.id, joined.player.id);
+
+    expect(made.lobby.players).toEqual([made.player]);
+    expect(manager.playerForToken(made.lobby, joined.token)).toBeUndefined();
+    expect(h.event).toHaveBeenCalledWith(
+      made.lobby,
+      expect.objectContaining({
+        type: "player.kicked",
+        actorId: made.player.id,
+        data: expect.objectContaining({
+          name: "Ben",
+          playerId: joined.player.id,
+        }),
+      }),
+    );
+    manager.stop();
+  });
+  it("publishes and updates each player's validated accent color", async () => {
+    const h = hooks();
+    const manager = new LobbyManager(h);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+      "#a93b63",
+    );
+    const joined = await manager.join(
+      made.lobby,
+      "Ben",
+      undefined,
+      "s2",
+      "#1769aa",
+    );
+
+    expect(
+      manager
+        .view(made.lobby, made.player.id)
+        .players.map((player) => player.accentColor),
+    ).toEqual(["#a93b63", "#1769aa"]);
+    manager.updatePlayerAccent(made.lobby, made.player.id, "#6849bd");
+
+    expect(made.player.accentColor).toBe("#6849bd");
+    expect(
+      manager.view(made.lobby, made.player.id).players[0]?.accentColor,
+    ).toBe("#6849bd");
+    expect(joined.player.accentColor).toBe("#1769aa");
+    expect(h.changed).toHaveBeenCalledWith(made.lobby);
     manager.stop();
   });
   it.each([

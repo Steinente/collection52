@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { PublicLobby, StructuredEvent } from "@collection52/shared";
 import { eventTranslationKey, technicalEventTypes } from "../client-config";
@@ -18,6 +18,18 @@ import {
   SchwimmenBoard,
   SchwimmenRoundResultPanel,
 } from "./game-boards";
+
+function avatarColorStyle(color: string): CSSProperties {
+  const normalized = /^#[0-9a-f]{6}$/i.test(color) ? color : "#0f745d";
+  const red = Number.parseInt(normalized.slice(1, 3), 16);
+  const green = Number.parseInt(normalized.slice(3, 5), 16);
+  const blue = Number.parseInt(normalized.slice(5, 7), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+  return {
+    "--player-accent": normalized,
+    "--player-accent-contrast": brightness > 155 ? "#07110e" : "#ffffff",
+  } as CSSProperties;
+}
 import { LobbySettings } from "./lobby-settings";
 
 export function LobbyView({
@@ -280,22 +292,55 @@ export function LobbyView({
               p.isHost ? t("host") : "",
             ].filter(Boolean);
             const details = detailParts.join(" · ");
+            const canKick = isHost && p.id !== playerId;
             return (
               <li
                 key={p.id}
-                className={knackPlayer?.eliminated ? "eliminated" : ""}
+                className={[
+                  knackPlayer?.eliminated ? "eliminated" : "",
+                  canKick ? "kickable" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 aria-label={[p.name, ...detailParts].join(", ")}
               >
-                <span className="avatar" aria-hidden="true">
-                  {p.name.slice(0, 1).toUpperCase()}
+                <span className="player-avatar-wrap" aria-hidden="true">
+                  <span
+                    className="avatar"
+                    style={avatarColorStyle(p.accentColor)}
+                  >
+                    {p.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <i
+                    className={`player-presence ${p.connected ? "online" : p.detached ? "away" : "offline"}`}
+                  />
                 </span>
                 <span aria-hidden="true">
                   <strong>{p.name}</strong>
                   {details && <small>{details}</small>}
-                  <i
-                    className={`player-presence ${p.connected ? "online" : "offline"}`}
-                  />
                 </span>
+                {canKick && (
+                  <button
+                    className="player-kick"
+                    type="button"
+                    aria-label={t("kickPlayerLabel", { name: p.name })}
+                    title={t("kickPlayerLabel", { name: p.name })}
+                    onClick={() => {
+                      if (!confirm(t("confirmKickPlayer", { name: p.name })))
+                        return;
+                      socket.emit(
+                        "lobby:kick",
+                        { playerId: p.id },
+                        (result) => {
+                          if (!result.ok)
+                            setError(result.error ?? "unknown_error");
+                        },
+                      );
+                    }}
+                  >
+                    {t("kickPlayer")}
+                  </button>
+                )}
               </li>
             );
           })}

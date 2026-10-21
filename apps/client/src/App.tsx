@@ -59,6 +59,31 @@ const DeviceTransferDialog = lazy(() =>
 const initialDeviceTransferCode =
   new URLSearchParams(location.search).get("transfer")?.trim() ?? "";
 
+function cssColorToHex(color: string) {
+  const channels = color.match(
+    /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i,
+  );
+  if (!channels) return undefined;
+  return `#${channels
+    .slice(1, 4)
+    .map((channel) =>
+      Math.max(0, Math.min(255, Math.round(Number(channel))))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
+}
+
+function resolvedAccentColor() {
+  const probe = document.createElement("span");
+  probe.style.color = "var(--accent)";
+  probe.hidden = true;
+  document.body.append(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return { css: color, hex: cssColorToHex(color) ?? "#0f745d" };
+}
+
 function actionCueKey(game: AnyGameView | undefined, playerId: string): string {
   if (!game || !playerId) return "";
   const player = game.players.find((candidate) => candidate.id === playerId);
@@ -168,6 +193,7 @@ export function App() {
     return Boolean(code && localStorage.getItem(sessionKey(code)));
   });
   const [prefs, setPrefs] = useState(loadPreferences);
+  const [playerAccentColor, setPlayerAccentColor] = useState("#0f745d");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [selectedRommeVariant, setSelectedRommeVariant] = useState<
@@ -232,19 +258,39 @@ export function App() {
       root.style.removeProperty("--accent-2");
       root.style.removeProperty("--accent-contrast");
     }
-    const probe = document.createElement("span");
-    probe.style.color = "var(--accent)";
-    probe.hidden = true;
-    document.body.append(probe);
-    const resolvedAccent = getComputedStyle(probe).color;
-    probe.remove();
+    const resolvedAccent = resolvedAccentColor();
+    setPlayerAccentColor(resolvedAccent.hex);
     document
       .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-      ?.setAttribute("content", resolvedAccent);
+      ?.setAttribute("content", resolvedAccent.css);
   }, [prefs]);
+  useEffect(() => {
+    const colorScheme = matchMedia("(prefers-color-scheme: dark)");
+    const update = () => {
+      requestAnimationFrame(() => {
+        const resolvedAccent = resolvedAccentColor();
+        setPlayerAccentColor(resolvedAccent.hex);
+        document
+          .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+          ?.setAttribute("content", resolvedAccent.css);
+      });
+    };
+    colorScheme.addEventListener("change", update);
+    return () => colorScheme.removeEventListener("change", update);
+  }, []);
   useEffect(() => {
     if (!prefs.speech && "speechSynthesis" in window) speechSynthesis.cancel();
   }, [prefs.speech]);
+  useEffect(() => {
+    if (!connected || !lobby?.code || !playerId) return;
+    socket.emit(
+      "player:update",
+      { accentColor: playerAccentColor },
+      (result) => {
+        if (!result.ok) setError(result.error ?? "unknown_error");
+      },
+    );
+  }, [connected, lobby?.code, playerAccentColor, playerId]);
   useEffect(() => {
     const onConnect = () => {
       setConnected(true);
@@ -289,8 +335,18 @@ export function App() {
       setRestoringSession(false);
       setPlayerId("");
       setWarning(undefined);
-      setError(reason === "inactive" ? "lobby_not_found" : "");
-      announceRef.current(translateRef.current("closed"));
+      setInfo("");
+      const message = translateRef.current(
+        reason === "kicked" ? "kickedFromLobby" : "closed",
+      );
+      setError(
+        reason === "inactive"
+          ? "lobby_not_found"
+          : reason === "kicked"
+            ? "kicked_from_lobby"
+            : "",
+      );
+      announceRef.current(message);
       history.replaceState({}, "", location.pathname);
     };
     const onEvent = (event: StructuredEvent) => {
@@ -298,6 +354,14 @@ export function App() {
       if (event.type === "player.left") {
         const effect = String(event.data.gameEffect ?? "none");
         const message = translateRef.current(`playerLeftNotice_${effect}`, {
+          name: String(event.data.name ?? ""),
+        });
+        setInfo(message);
+        announceRef.current(message);
+      }
+      if (event.type === "player.kicked") {
+        const effect = String(event.data.gameEffect ?? "none");
+        const message = translateRef.current(`playerKickedNotice_${effect}`, {
           name: String(event.data.name ?? ""),
         });
         setInfo(message);
@@ -665,6 +729,7 @@ export function App() {
             resumeRetainedLobby={resumeRetainedLobby}
             permanentlyLeaveRetainedLobby={permanentlyLeaveRetainedLobby}
             openDeviceTransfer={() => setDeviceTransferMode("receive")}
+            playerAccentColor={playerAccentColor}
           />
         )}
       </main>
