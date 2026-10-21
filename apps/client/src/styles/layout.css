@@ -467,8 +467,8 @@ button.primary:hover:not(:disabled) {
   line-height: 1;
 }
 .game-search-field input {
-  height: 44px;
-  min-height: 44px;
+  height: var(--control-height);
+  min-height: var(--control-height);
   border: 0;
   background: transparent;
   box-shadow: none !important;

@@ -16,7 +16,7 @@
 .fixed-setting > strong {
   display: flex;
   align-items: center;
-  height: 46px;
+  height: var(--control-height);
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--border);
   border-radius: 0.6rem;

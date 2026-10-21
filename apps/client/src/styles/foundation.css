@@ -11,6 +11,8 @@
   --border: #b8c8c2;
   --focus: #ff9d00;
   --shadow: 0 12px 35px rgba(13, 39, 31, 0.09);
+  --control-height: 48px;
+  --header-control-height: 42px;
   font-family:
     Inter,
     ui-sans-serif,
@@ -90,7 +92,7 @@ a {
   touch-action: manipulation;
 }
 button {
-  min-height: 44px;
+  min-height: var(--control-height);
   border: 1px solid var(--border);
   border-radius: 0.65rem;
   background: var(--surface-2);
@@ -218,7 +220,7 @@ small {
 input,
 select {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--control-height);
   border: 1px solid var(--border);
   border-radius: 0.55rem;
   background: var(--bg);
@@ -548,8 +550,8 @@ footer div {
 }
 input,
 select {
-  height: 46px;
-  min-height: 46px;
+  height: var(--control-height);
+  min-height: var(--control-height);
 }
 .game-picker {
   display: grid;
@@ -558,7 +560,7 @@ select {
   align-items: end;
 }
 .game-picker button {
-  height: 46px;
+  height: var(--control-height);
   white-space: nowrap;
 }
 .full-button {
@@ -594,12 +596,16 @@ select {
 }
 .header-select select {
   width: auto;
-  height: 40px;
-  min-height: 40px;
+  height: var(--header-control-height);
+  min-height: var(--header-control-height);
   padding: 0.35rem 2rem 0.35rem 0.6rem;
 }
 .topbar > .header-actions {
   margin-left: auto;
+}
+.topbar > .header-actions > button {
+  height: var(--header-control-height);
+  min-height: var(--header-control-height);
 }
 footer {
   position: relative;
@@ -616,7 +622,7 @@ footer {
   justify-self: end;
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--control-height);
   border: 1px solid var(--border);
   border-radius: 0.65rem;
   padding: 0.65rem 1rem;
@@ -683,7 +689,7 @@ footer {
 }
 .custom-select-trigger {
   width: 100%;
-  height: 46px;
+  height: var(--control-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -748,8 +754,8 @@ footer {
   min-width: 118px;
 }
 .header-select .custom-select-trigger {
-  height: 40px;
-  min-height: 40px;
+  height: var(--header-control-height);
+  min-height: var(--header-control-height);
   padding: 0.4rem 0.65rem;
   background: transparent;
 }
@@ -856,7 +862,7 @@ input[aria-invalid="true"] {
   min-width: min(260px, 32vw);
 }
 .lobby-row-join button {
-  height: 46px;
+  height: var(--control-height);
   white-space: nowrap;
 }
 @media (max-width: 760px) {
@@ -1028,7 +1034,7 @@ button:active:not(:disabled),
   justify-content: center;
   gap: 0.55rem;
   min-width: 170px;
-  min-height: 46px;
+  min-height: var(--control-height);
   padding: 0.68rem 1.1rem;
   border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--border));
   border-radius: 999px;

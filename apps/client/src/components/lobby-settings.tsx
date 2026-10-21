@@ -13,6 +13,15 @@ import {
 import { socket } from "../socket";
 import { ResponsiveSelect, TextInput } from "./ui";
 
+type LobbySettingsUpdate = {
+  maxPlayers?: number;
+  deckSize?: 36 | 52;
+  visibility?: "public" | "private";
+  password?: string;
+  mauMauRules?: MauMauRules;
+  rommeRules?: RommeRules;
+};
+
 export function LobbySettings({
   lobby,
   setError,
@@ -40,33 +49,49 @@ export function LobbySettings({
     ...defaultRommeRules,
     ...lobby.rommeRules,
   });
+  const saveUpdate = (
+    update: LobbySettingsUpdate,
+    onSaved?: () => void,
+    onFailed?: () => void,
+  ) => {
+    setSaved(false);
+    socket.emit("lobby:update", update, (result) => {
+      if (!result.ok) {
+        onFailed?.();
+        setError(result.error ?? "unknown_error");
+        return;
+      }
+      onSaved?.();
+      setSaved(true);
+    });
+  };
   const updateMauMauRule = <K extends keyof MauMauRules>(
     key: K,
     value: MauMauRules[K],
   ) => {
-    setSaved(false);
-    setMauMauRules((current) => ({ ...current, [key]: value }));
+    const previous = mauMauRules;
+    const next = { ...previous, [key]: value };
+    setMauMauRules(next);
+    saveUpdate(
+      { mauMauRules: next },
+      () => localStorage.setItem(storageKeys.mauMauRules, JSON.stringify(next)),
+      () => setMauMauRules(previous),
+    );
   };
-  const savedMauMauRules = lobby.mauMauRules ?? defaultMauMauRules;
-  const mauMauRulesChanged =
-    lobby.gameId === "mau-mau" &&
-    (Object.keys(defaultMauMauRules) as Array<keyof MauMauRules>).some(
-      (key) => mauMauRules[key] !== savedMauMauRules[key],
+  const updateRommeRules = (
+    next: RommeRules,
+    extraUpdate: LobbySettingsUpdate = {},
+  ) => {
+    const previous = rommeRules;
+    setRommeRules(next);
+    saveUpdate(
+      { ...extraUpdate, rommeRules: next },
+      () => localStorage.setItem(storageKeys.rommeRules, JSON.stringify(next)),
+      () => setRommeRules(previous),
     );
-  const savedRommeRules = { ...defaultRommeRules, ...lobby.rommeRules };
-  const rommeRulesChanged =
-    lobby.gameId === "romme" &&
-    (Object.keys(defaultRommeRules) as Array<keyof RommeRules>).some(
-      (key) => rommeRules[key] !== savedRommeRules[key],
-    );
-  const hasSettingsChanges =
-    maxPlayers !== lobby.maxPlayers ||
-    visibility !== lobby.visibility ||
-    (lobby.gameId === "durak" && deckSize !== lobby.deckSize) ||
-    mauMauRulesChanged ||
-    rommeRulesChanged ||
-    passwordEnabled !== lobby.passwordProtected ||
-    Boolean(password);
+  };
+  const passwordChanged =
+    passwordEnabled !== lobby.passwordProtected || Boolean(password);
   const passwordReady =
     !passwordEnabled || lobby.passwordProtected || Boolean(password);
   useEffect(() => {
@@ -79,10 +104,12 @@ export function LobbySettings({
       setError("gin_requires_two_players");
       return;
     }
-    setSaved(false);
-    setRommeRules({ ...rommeRules, variant });
+    const next = { ...rommeRules, variant };
     setSelectedRommeVariant(variant);
-    if (variant === "gin") setMaxPlayers(2);
+    if (variant === "gin") {
+      setMaxPlayers(2);
+      updateRommeRules(next, { maxPlayers: 2 });
+    } else updateRommeRules(next);
   };
   return (
     <form
@@ -90,8 +117,7 @@ export function LobbySettings({
       aria-labelledby="lobby-settings-title"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!hasSettingsChanges || !passwordReady) return;
-        setSaved(false);
+        if (!passwordChanged || !passwordReady) return;
         const passwordChange = passwordEnabled
           ? password
             ? { password }
@@ -99,34 +125,7 @@ export function LobbySettings({
           : lobby.passwordProtected
             ? { password: "" }
             : {};
-        socket.emit(
-          "lobby:update",
-          {
-            maxPlayers,
-            ...(lobby.gameId === "durak" ? { deckSize } : {}),
-            ...(lobby.gameId === "mau-mau" ? { mauMauRules } : {}),
-            ...(lobby.gameId === "romme" ? { rommeRules } : {}),
-            visibility,
-            ...passwordChange,
-          },
-          (result) => {
-            if (!result.ok) setError(result.error ?? "unknown_error");
-            else {
-              if (lobby.gameId === "mau-mau")
-                localStorage.setItem(
-                  storageKeys.mauMauRules,
-                  JSON.stringify(mauMauRules),
-                );
-              if (lobby.gameId === "romme")
-                localStorage.setItem(
-                  storageKeys.rommeRules,
-                  JSON.stringify(rommeRules),
-                );
-              setPassword("");
-              setSaved(true);
-            }
-          },
-        );
+        saveUpdate(passwordChange, () => setPassword(""));
       }}
     >
       <h2 id="lobby-settings-title">{t("lobbySettings")}</h2>
@@ -137,8 +136,12 @@ export function LobbySettings({
             label={t("deckSize")}
             value={String(deckSize)}
             onChange={(value) => {
-              setSaved(false);
-              setDeckSize(Number(value) as 36 | 52);
+              const previous = deckSize;
+              const next = Number(value) as 36 | 52;
+              setDeckSize(next);
+              saveUpdate({ deckSize: next }, undefined, () =>
+                setDeckSize(previous),
+              );
             }}
             options={[
               { value: "36", label: t("cards36") },
@@ -167,8 +170,12 @@ export function LobbySettings({
           value={String(maxPlayers)}
           disabled={lobby.gameId === "romme" && rommeRules.variant === "gin"}
           onChange={(value) => {
-            setSaved(false);
-            setMaxPlayers(Number(value));
+            const previous = maxPlayers;
+            const next = Number(value);
+            setMaxPlayers(next);
+            saveUpdate({ maxPlayers: next }, undefined, () =>
+              setMaxPlayers(previous),
+            );
           }}
           options={[2, 3, 4, 5, 6].map((count) => ({
             value: String(count),
@@ -187,8 +194,12 @@ export function LobbySettings({
           label={t("visibility")}
           value={visibility}
           onChange={(value) => {
-            setSaved(false);
-            setVisibility(value as "public" | "private");
+            const previous = visibility;
+            const next = value as "public" | "private";
+            setVisibility(next);
+            saveUpdate({ visibility: next }, undefined, () =>
+              setVisibility(previous),
+            );
           }}
           options={[
             { value: "public", label: t("public") },
@@ -251,8 +262,7 @@ export function LobbySettings({
                   label={t("rommeOpeningThreshold")}
                   value={String(rommeRules.openingPoints)}
                   onChange={(value) => {
-                    setSaved(false);
-                    setRommeRules({
+                    updateRommeRules({
                       ...rommeRules,
                       openingPoints: Number(value) as 30 | 40,
                     });
@@ -268,8 +278,7 @@ export function LobbySettings({
                   type="checkbox"
                   checked={rommeRules.requireDiscardUse}
                   onChange={(event) => {
-                    setSaved(false);
-                    setRommeRules({
+                    updateRommeRules({
                       ...rommeRules,
                       requireDiscardUse: event.target.checked,
                     });
@@ -288,8 +297,7 @@ export function LobbySettings({
                 label={t("ginTargetScore")}
                 value={String(rommeRules.ginTargetScore)}
                 onChange={(value) => {
-                  setSaved(false);
-                  setRommeRules({
+                  updateRommeRules({
                     ...rommeRules,
                     ginTargetScore: Number(value),
                   });
@@ -303,53 +311,49 @@ export function LobbySettings({
           )}
         </fieldset>
       )}
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={passwordEnabled}
-          onChange={(event) => {
-            setSaved(false);
-            setPasswordEnabled(event.target.checked);
-          }}
-        />
-        {t("passwordProtection")}
-      </label>
-      {passwordEnabled && (
-        <TextInput
-          label={
-            lobby.passwordProtected
-              ? t("newPasswordOptional")
-              : t("passwordRequired")
-          }
-          value={password}
-          onChange={(value) => {
-            setSaved(false);
-            setPassword(value);
-          }}
-          type="password"
-          maxLength={72}
-          required={!lobby.passwordProtected}
-        />
-      )}
-      <button
-        className={`settings-save-button ${hasSettingsChanges ? "primary has-changes" : "is-current"}`}
-        type="submit"
-        disabled={!hasSettingsChanges || !passwordReady}
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          {hasSettingsChanges ? (
-            <>
-              <path d="M5 3.75h12.2L20.25 6.8V20.25H3.75V3.75H5Z" />
-              <path d="M7.25 3.75v6h9.5v-6M7.5 20.25v-6.5h9v6.5" />
-            </>
-          ) : (
-            <path d="m5.25 12.25 4.1 4.1 9.4-9.4" />
-          )}
-        </svg>
-        <span>
-          {t(hasSettingsChanges ? "saveSettings" : "settingsUpToDate")}
-        </span>
-      </button>
+      <div className={`password-setting${passwordEnabled ? " enabled" : ""}`}>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={passwordEnabled}
+            onChange={(event) => {
+              const enabled = event.target.checked;
+              setSaved(false);
+              setPasswordEnabled(enabled);
+              if (!enabled) setPassword("");
+            }}
+          />
+          {t("passwordProtection")}
+        </label>
+        {passwordEnabled && (
+          <TextInput
+            label={
+              lobby.passwordProtected
+                ? t("newPasswordOptional")
+                : t("passwordRequired")
+            }
+            value={password}
+            onChange={(value) => {
+              setSaved(false);
+              setPassword(value);
+            }}
+            type="password"
+            maxLength={72}
+            required={!lobby.passwordProtected}
+          />
+        )}
+        <button
+          className="password-save-button primary"
+          type="submit"
+          disabled={!passwordChanged || !passwordReady}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 3.75h12.2L20.25 6.8V20.25H3.75V3.75H5Z" />
+            <path d="M7.25 3.75v6h9.5v-6M7.5 20.25v-6.5h9v6.5" />
+          </svg>
+          <span>{t("savePassword")}</span>
+        </button>
+      </div>
       {saved && (
         <p className="action-feedback settings-feedback" role="status">
           {t("settingsSaved")}
