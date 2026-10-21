@@ -370,6 +370,25 @@ test("two browser contexts can create, join, and start Durak", async ({
     await expect(startGame).toBeDisabled();
     const code = (await lobbyHeading.textContent())!.split(" ").at(-1)!;
     await rememberTestLobby(host, code);
+    await host.addInitScript(() => {
+      const state = window as typeof window & { c52HomeFlashed?: boolean };
+      state.c52HomeFlashed = false;
+      new MutationObserver(() => {
+        if (
+          /Spiel starten|Start playing/.test(document.body?.textContent ?? "")
+        )
+          state.c52HomeFlashed = true;
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    });
+    await host.reload();
+    await expect(lobbyHeading).toBeVisible();
+    expect(
+      await host.evaluate(
+        () =>
+          (window as typeof window & { c52HomeFlashed?: boolean })
+            .c52HomeFlashed,
+      ),
+    ).toBe(false);
     await host.getByRole("button", { name: /Copy code|Code kopieren/ }).click();
     await expect(
       host

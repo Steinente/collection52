@@ -146,6 +146,10 @@ export function App() {
   const [retainedLobby, setRetainedLobby] = useState<RetainedLobby | undefined>(
     loadRetainedLobby,
   );
+  const [restoringSession, setRestoringSession] = useState(() => {
+    const code = invitationCode();
+    return Boolean(code && localStorage.getItem(sessionKey(code)));
+  });
   const [prefs, setPrefs] = useState(loadPreferences);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -228,9 +232,10 @@ export function App() {
         const token = localStorage.getItem(sessionKey(code));
         if (token)
           socket.emit("lobby:resume", { code, token }, (result) => {
-            if (!result.ok && lobbyRef.current)
-              setError(result.error ?? "unknown_error");
-            else if (result.playerId) setPlayerId(result.playerId);
+            if (!result.ok) {
+              if (lobbyRef.current) setError(result.error ?? "unknown_error");
+              setRestoringSession(false);
+            } else if (result.playerId) setPlayerId(result.playerId);
           });
       }
       socket.emit("lobby:list", setLobbies);
@@ -246,6 +251,7 @@ export function App() {
       setRetainedLobby(retained);
       setLobby(state);
       setEvents(state.events);
+      setRestoringSession(false);
     };
     const onClosed = ({ reason }: { reason: string }) => {
       const currentLobby = lobbyRef.current;
@@ -253,6 +259,7 @@ export function App() {
       localStorage.removeItem(retainedLobbyStorageKey);
       setRetainedLobby(undefined);
       setLobby(undefined);
+      setRestoringSession(false);
       setPlayerId("");
       setWarning(undefined);
       setError(reason === "inactive" ? "lobby_not_found" : "");
@@ -327,11 +334,13 @@ export function App() {
       setError("invalid_session");
       return;
     }
+    setRestoringSession(true);
     socket.emit(
       "lobby:resume",
       { code: retainedLobby.code, token },
       (result) => {
         if (!result.ok) {
+          setRestoringSession(false);
           if (
             result.error === "lobby_not_found" ||
             result.error === "invalid_session"
@@ -525,6 +534,10 @@ export function App() {
           <Suspense fallback={<p className="legal-loading">{t("loading")}</p>}>
             <LegalPage kind={legalPage} />
           </Suspense>
+        ) : restoringSession ? (
+          <p className="legal-loading" role="status" aria-live="polite">
+            {t("loading")}
+          </p>
         ) : lobby ? (
           <Suspense fallback={<p className="legal-loading">{t("loading")}</p>}>
             <LobbyView
