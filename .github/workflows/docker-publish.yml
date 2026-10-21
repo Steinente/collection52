@@ -5,19 +5,19 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
     paths:
-      - 'apps/**'
-      - 'packages/**'
-      - 'scripts/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig.base.json'
-      - 'vitest.config.ts'
-      - 'Dockerfile'
-      - '.dockerignore'
-      - 'docker-compose.yml'
-      - '.github/workflows/docker-publish.yml'
+      - "apps/**"
+      - "packages/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - "vitest.config.ts"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "docker-compose.yml"
+      - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
 
 permissions:

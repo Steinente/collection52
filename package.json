@@ -3,7 +3,10 @@
   "private": true,
   "type": "module",
   "version": "1.0.0",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev": "concurrently -n server,client -c green,cyan \"npm run dev -w @collection52/server\" \"npm run dev -w @collection52/client\"",
     "build": "npm run build -w @collection52/shared && npm run build -w @collection52/server && npm run build -w @collection52/client",
@@ -13,19 +16,24 @@
     "generate:pwa-icons": "node scripts/generate-pwa-icons.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "start": "npm run start -w @collection52/server"
   },
   "devDependencies": {
-    "@eslint/js": "^9.37.0",
     "@axe-core/playwright": "^4.10.2",
+    "@eslint/js": "^9.37.0",
     "@playwright/test": "^1.56.0",
     "@types/node": "^24.7.2",
     "concurrently": "^9.2.1",
     "eslint": "^9.37.0",
     "globals": "^16.4.0",
+    "prettier": "^3.6.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
     "vitest": "^5.0.4"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

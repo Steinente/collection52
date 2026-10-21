@@ -1,85 +1,338 @@
-import { describe, expect, it, vi } from 'vitest';
-import { LobbyManager } from './lobby-manager.js';
+import { describe, expect, it, vi } from "vitest";
+import { LobbyManager } from "./lobby-manager.js";
 
-const hooks = () => ({ changed: vi.fn(), event: vi.fn(), closed: vi.fn(), warning: vi.fn(), listChanged: vi.fn() });
-describe('LobbyManager', () => {
-  it('creates secure sessions, hides private lobbies, and rejects duplicate names', async () => { const h = hooks(); const manager = new LobbyManager(h); const made = await manager.create('Anna', { maxPlayers: 4, deckSize: 36, visibility: 'private' }, 's1'); expect(made.token.length).toBeGreaterThan(30); expect(manager.list()).toHaveLength(0); await expect(manager.join(made.lobby, 'anna', undefined, 's2')).rejects.toThrow('duplicate_name'); manager.stop(); });
-  it('checks passwords without storing plaintext', async () => { const manager = new LobbyManager(hooks()); const made = await manager.create('Anna', { maxPlayers: 4, deckSize: 36, visibility: 'public', password: 'secret' }, 's1'); expect(made.lobby.passwordHash).not.toBe('secret'); expect(manager.list()[0]?.hostName).toBe('Anna'); await expect(manager.join(made.lobby, 'Ben', 'bad', 's2')).rejects.toThrow('wrong_password'); expect((await manager.join(made.lobby, 'Ben', 'secret', 's2')).player.name).toBe('Ben'); manager.stop(); });
-  it('never transfers host and closes inactive lobbies', async () => { const h = hooks(); const manager = new LobbyManager(h, 100, 20); const made = await manager.create('Anna', { maxPlayers: 4, deckSize: 36, visibility: 'public' }, 's1'); const joined = await manager.join(made.lobby, 'Ben', undefined, 's2'); manager.leave(made.lobby, joined.player.id); expect(made.lobby.hostId).toBe(made.player.id); manager.cleanup(made.lobby.activityAt + 101); expect(manager.find(made.lobby.code)).toBeUndefined(); expect(h.closed).toHaveBeenCalled(); manager.stop(); });
-  it('allows only the host to update waiting-lobby settings', async () => { const manager = new LobbyManager(hooks()); const made = await manager.create('Anna', { maxPlayers: 4, deckSize: 36, visibility: 'public' }, 's1'); const joined = await manager.join(made.lobby, 'Ben', undefined, 's2'); await expect(manager.update(made.lobby, joined.player.id, { deckSize: 52 })).rejects.toThrow('host_only'); await manager.update(made.lobby, made.player.id, { deckSize: 52, visibility: 'private' }); expect(made.lobby.deckSize).toBe(52); expect(manager.list()).toHaveLength(0); manager.stop(); });
-  it('does not emit another reconnect event for the already active socket', async () => {
+const hooks = () => ({
+  changed: vi.fn(),
+  event: vi.fn(),
+  closed: vi.fn(),
+  warning: vi.fn(),
+  listChanged: vi.fn(),
+});
+describe("LobbyManager", () => {
+  it("creates secure sessions, hides private lobbies, and rejects duplicate names", async () => {
     const h = hooks();
     const manager = new LobbyManager(h);
-    const made = await manager.create('Anna', { maxPlayers: 4, deckSize: 36, visibility: 'public' }, 's1');
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "private" },
+      "s1",
+    );
+    expect(made.token.length).toBeGreaterThan(30);
+    expect(manager.list()).toHaveLength(0);
+    await expect(
+      manager.join(made.lobby, "anna", undefined, "s2"),
+    ).rejects.toThrow("duplicate_name");
+    manager.stop();
+  });
+  it("checks passwords without storing plaintext", async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public", password: "secret" },
+      "s1",
+    );
+    expect(made.lobby.passwordHash).not.toBe("secret");
+    expect(manager.list()[0]?.hostName).toBe("Anna");
+    await expect(manager.join(made.lobby, "Ben", "bad", "s2")).rejects.toThrow(
+      "wrong_password",
+    );
+    expect(
+      (await manager.join(made.lobby, "Ben", "secret", "s2")).player.name,
+    ).toBe("Ben");
+    manager.stop();
+  });
+  it("never transfers host and closes inactive lobbies", async () => {
+    const h = hooks();
+    const manager = new LobbyManager(h, 100, 20);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    const joined = await manager.join(made.lobby, "Ben", undefined, "s2");
+    manager.leave(made.lobby, joined.player.id);
+    expect(made.lobby.hostId).toBe(made.player.id);
+    manager.cleanup(made.lobby.activityAt + 101);
+    expect(manager.find(made.lobby.code)).toBeUndefined();
+    expect(h.closed).toHaveBeenCalled();
+    manager.stop();
+  });
+  it("allows only the host to update waiting-lobby settings", async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    const joined = await manager.join(made.lobby, "Ben", undefined, "s2");
+    await expect(
+      manager.update(made.lobby, joined.player.id, { deckSize: 52 }),
+    ).rejects.toThrow("host_only");
+    await manager.update(made.lobby, made.player.id, {
+      deckSize: 52,
+      visibility: "private",
+    });
+    expect(made.lobby.deckSize).toBe(52);
+    expect(manager.list()).toHaveLength(0);
+    manager.stop();
+  });
+  it("does not emit another reconnect event for the already active socket", async () => {
+    const h = hooks();
+    const manager = new LobbyManager(h);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
     const changedCalls = h.changed.mock.calls.length;
     const eventCalls = h.event.mock.calls.length;
 
-    manager.resume(made.lobby, made.token, 's1');
+    manager.resume(made.lobby, made.token, "s1");
 
     expect(h.changed).toHaveBeenCalledTimes(changedCalls);
     expect(h.event).toHaveBeenCalledTimes(eventCalls);
     manager.stop();
   });
-  it('retains a detached guest and only removes them after a permanent leave', async () => {
-    const h = hooks(); const manager = new LobbyManager(h); const made = await manager.create('Anna', { maxPlayers: 4, deckSize: 36, visibility: 'public' }, 's1'); const joined = await manager.join(made.lobby, 'Ben', undefined, 's2');
-    manager.detach(made.lobby, joined.player.id); expect(made.lobby.players).toHaveLength(2); expect(joined.player.connected).toBe(false); expect(manager.playerForToken(made.lobby, joined.token)?.id).toBe(joined.player.id);
-    manager.leave(made.lobby, joined.player.id); expect(made.lobby.players).toHaveLength(1); expect(h.event).toHaveBeenCalledWith(made.lobby, expect.objectContaining({ type: 'player.left', data: expect.objectContaining({ name: 'Ben' }) })); manager.stop();
+  it("retains a detached guest and only removes them after a permanent leave", async () => {
+    const h = hooks();
+    const manager = new LobbyManager(h);
+    const made = await manager.create(
+      "Anna",
+      { maxPlayers: 4, deckSize: 36, visibility: "public" },
+      "s1",
+    );
+    const joined = await manager.join(made.lobby, "Ben", undefined, "s2");
+    manager.detach(made.lobby, joined.player.id);
+    expect(made.lobby.players).toHaveLength(2);
+    expect(joined.player.connected).toBe(false);
+    expect(manager.playerForToken(made.lobby, joined.token)?.id).toBe(
+      joined.player.id,
+    );
+    manager.leave(made.lobby, joined.player.id);
+    expect(made.lobby.players).toHaveLength(1);
+    expect(h.event).toHaveBeenCalledWith(
+      made.lobby,
+      expect.objectContaining({
+        type: "player.left",
+        data: expect.objectContaining({ name: "Ben" }),
+      }),
+    );
+    manager.stop();
   });
   it.each([
-    ['durak', 36],
-    ['schwimmen', 32]
-  ] as const)('continues a running %s game after a guest permanently leaves when two players remain', async (gameId, deckSize) => {
-    const manager = new LobbyManager(hooks()); const made = await manager.create('Anna', { gameId, maxPlayers: 4, deckSize, visibility: 'public' }, 's1'); const ben = await manager.join(made.lobby, 'Ben', undefined, 's2'); await manager.join(made.lobby, 'Clara', undefined, 's3'); manager.start(made.lobby, made.player.id);
-    manager.leave(made.lobby, ben.player.id); expect(made.lobby.status).toBe('playing'); expect(made.lobby.game?.players.map((player) => player.id)).not.toContain(ben.player.id); expect(made.lobby.players).toHaveLength(2); manager.stop();
-  });
-  it('ends the current Mau-Mau round when a guest permanently leaves', async () => {
-    const manager = new LobbyManager(hooks()); const made = await manager.create('Anna', { gameId: 'mau-mau', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1'); const ben = await manager.join(made.lobby, 'Ben', undefined, 's2'); await manager.join(made.lobby, 'Clara', undefined, 's3'); manager.start(made.lobby, made.player.id);
-    manager.leave(made.lobby, ben.player.id); expect(made.lobby.status).toBe('waiting'); expect(made.lobby.game).toBeUndefined(); expect(made.lobby.events.at(-1)?.data.gameEffect).toBe('round_cancelled'); manager.stop();
-  });
-  it('creates, starts, and privately projects a Knack game', async () => {
+    ["durak", 36],
+    ["schwimmen", 32],
+  ] as const)(
+    "continues a running %s game after a guest permanently leaves when two players remain",
+    async (gameId, deckSize) => {
+      const manager = new LobbyManager(hooks());
+      const made = await manager.create(
+        "Anna",
+        { gameId, maxPlayers: 4, deckSize, visibility: "public" },
+        "s1",
+      );
+      const ben = await manager.join(made.lobby, "Ben", undefined, "s2");
+      await manager.join(made.lobby, "Clara", undefined, "s3");
+      manager.start(made.lobby, made.player.id);
+      manager.leave(made.lobby, ben.player.id);
+      expect(made.lobby.status).toBe("playing");
+      expect(made.lobby.game?.players.map((player) => player.id)).not.toContain(
+        ben.player.id,
+      );
+      expect(made.lobby.players).toHaveLength(2);
+      manager.stop();
+    },
+  );
+  it("ends the current Mau-Mau round when a guest permanently leaves", async () => {
     const manager = new LobbyManager(hooks());
-    const made = await manager.create('Anna', { gameId: 'schwimmen', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
-    const joined = await manager.join(made.lobby, 'Ben', undefined, 's2');
+    const made = await manager.create(
+      "Anna",
+      { gameId: "mau-mau", maxPlayers: 4, deckSize: 32, visibility: "public" },
+      "s1",
+    );
+    const ben = await manager.join(made.lobby, "Ben", undefined, "s2");
+    await manager.join(made.lobby, "Clara", undefined, "s3");
     manager.start(made.lobby, made.player.id);
-    expect(made.lobby.gameId).toBe('schwimmen'); expect(made.lobby.deckSize).toBe(32); expect(manager.summary(made.lobby).gameId).toBe('schwimmen');
-    const hostView = manager.view(made.lobby, made.player.id).game as { players: Array<{ id: string; hand: unknown[]; handCount?: number }>; center: unknown[] };
-    expect(hostView.center).toHaveLength(3); expect(hostView.players.find((player) => player.id === made.player.id)?.hand).toHaveLength(3);
-    expect(hostView.players.find((player) => player.id === joined.player.id)?.hand).toHaveLength(0); expect(hostView.players.find((player) => player.id === joined.player.id)?.handCount).toBe(3);
-    manager.close(made.lobby, 'test_finished'); manager.stop();
+    manager.leave(made.lobby, ben.player.id);
+    expect(made.lobby.status).toBe("waiting");
+    expect(made.lobby.game).toBeUndefined();
+    expect(made.lobby.events.at(-1)?.data.gameEffect).toBe("round_cancelled");
+    manager.stop();
   });
-  it('restarts a finished Knack round as a clean first round', async () => {
+  it("creates, starts, and privately projects a Knack game", async () => {
     const manager = new LobbyManager(hooks());
-    const made = await manager.create('Anna', { gameId: 'schwimmen', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
-    await manager.join(made.lobby, 'Ben', undefined, 's2'); manager.start(made.lobby, made.player.id);
-    const previousGame = made.lobby.game!; Object.assign(previousGame, { phase:'round-ended', roundNumber:4, roundResult:{ reason:'knock', scores:[], loserIds:[] }, lastRoundResult:{ reason:'knock', scores:[], loserIds:[] } });
+    const made = await manager.create(
+      "Anna",
+      {
+        gameId: "schwimmen",
+        maxPlayers: 4,
+        deckSize: 32,
+        visibility: "public",
+      },
+      "s1",
+    );
+    const joined = await manager.join(made.lobby, "Ben", undefined, "s2");
+    manager.start(made.lobby, made.player.id);
+    expect(made.lobby.gameId).toBe("schwimmen");
+    expect(made.lobby.deckSize).toBe(32);
+    expect(manager.summary(made.lobby).gameId).toBe("schwimmen");
+    const hostView = manager.view(made.lobby, made.player.id).game as {
+      players: Array<{ id: string; hand: unknown[]; handCount?: number }>;
+      center: unknown[];
+    };
+    expect(hostView.center).toHaveLength(3);
+    expect(
+      hostView.players.find((player) => player.id === made.player.id)?.hand,
+    ).toHaveLength(3);
+    expect(
+      hostView.players.find((player) => player.id === joined.player.id)?.hand,
+    ).toHaveLength(0);
+    expect(
+      hostView.players.find((player) => player.id === joined.player.id)
+        ?.handCount,
+    ).toBe(3);
+    manager.close(made.lobby, "test_finished");
+    manager.stop();
+  });
+  it("restarts a finished Knack round as a clean first round", async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create(
+      "Anna",
+      {
+        gameId: "schwimmen",
+        maxPlayers: 4,
+        deckSize: 32,
+        visibility: "public",
+      },
+      "s1",
+    );
+    await manager.join(made.lobby, "Ben", undefined, "s2");
+    manager.start(made.lobby, made.player.id);
+    const previousGame = made.lobby.game!;
+    Object.assign(previousGame, {
+      phase: "round-ended",
+      roundNumber: 4,
+      roundResult: { reason: "knock", scores: [], loserIds: [] },
+      lastRoundResult: { reason: "knock", scores: [], loserIds: [] },
+    });
     manager.restart(made.lobby, made.player.id);
-    expect(made.lobby.game).not.toBe(previousGame); expect(made.lobby.game).toMatchObject({ phase:'playing', roundNumber:1 });
-    expect(made.lobby.game).not.toHaveProperty('roundResult'); expect(made.lobby.game).not.toHaveProperty('lastRoundResult');
-    manager.close(made.lobby, 'test_finished'); manager.stop();
+    expect(made.lobby.game).not.toBe(previousGame);
+    expect(made.lobby.game).toMatchObject({ phase: "playing", roundNumber: 1 });
+    expect(made.lobby.game).not.toHaveProperty("roundResult");
+    expect(made.lobby.game).not.toHaveProperty("lastRoundResult");
+    manager.close(made.lobby, "test_finished");
+    manager.stop();
   });
-  it('creates, starts, and privately projects a Mau-Mau game', async () => {
+  it("creates, starts, and privately projects a Mau-Mau game", async () => {
     const manager = new LobbyManager(hooks());
-    const made = await manager.create('Anna', { gameId: 'mau-mau', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
-    const joined = await manager.join(made.lobby, 'Ben', undefined, 's2');
-    await manager.update(made.lobby, made.player.id, { mauMauRules: { stackSevens: true, forbidJackOnJack: true, forbidJackAsFinal: false, aceReverses: true } });
+    const made = await manager.create(
+      "Anna",
+      { gameId: "mau-mau", maxPlayers: 4, deckSize: 32, visibility: "public" },
+      "s1",
+    );
+    const joined = await manager.join(made.lobby, "Ben", undefined, "s2");
+    await manager.update(made.lobby, made.player.id, {
+      mauMauRules: {
+        stackSevens: true,
+        forbidJackOnJack: true,
+        forbidJackAsFinal: false,
+        aceReverses: true,
+      },
+    });
     manager.start(made.lobby, made.player.id);
-    expect(made.lobby.gameId).toBe('mau-mau'); expect(made.lobby.deckSize).toBe(32); expect(made.lobby.mauMauRules.stackSevens).toBe(true);
-    const hostView = manager.view(made.lobby, made.player.id).game as { players: Array<{ id: string; hand: unknown[]; handCount?: number }>; discard: unknown[]; rules: { aceReverses: boolean } };
-    expect(hostView.discard).toHaveLength(1); expect(hostView.players.find((player) => player.id === made.player.id)?.hand).toHaveLength(5);
+    expect(made.lobby.gameId).toBe("mau-mau");
+    expect(made.lobby.deckSize).toBe(32);
+    expect(made.lobby.mauMauRules.stackSevens).toBe(true);
+    const hostView = manager.view(made.lobby, made.player.id).game as {
+      players: Array<{ id: string; hand: unknown[]; handCount?: number }>;
+      discard: unknown[];
+      rules: { aceReverses: boolean };
+    };
+    expect(hostView.discard).toHaveLength(1);
+    expect(
+      hostView.players.find((player) => player.id === made.player.id)?.hand,
+    ).toHaveLength(5);
     expect(hostView.rules.aceReverses).toBe(true);
-    expect(hostView.players.find((player) => player.id === joined.player.id)?.hand).toHaveLength(0); expect(hostView.players.find((player) => player.id === joined.player.id)?.handCount).toBe(5);
-    manager.close(made.lobby, 'test_finished'); manager.stop();
+    expect(
+      hostView.players.find((player) => player.id === joined.player.id)?.hand,
+    ).toHaveLength(0);
+    expect(
+      hostView.players.find((player) => player.id === joined.player.id)
+        ?.handCount,
+    ).toBe(5);
+    manager.close(made.lobby, "test_finished");
+    manager.stop();
   });
-  it('records drawn cards only in the drawing player private event stream', async () => {
+  it("records drawn cards only in the drawing player private event stream", async () => {
     const manager = new LobbyManager(hooks());
-    const made = await manager.create('Anna', { gameId: 'mau-mau', maxPlayers: 4, deckSize: 32, visibility: 'public' }, 's1');
-    const joined = await manager.join(made.lobby, 'Ben', undefined, 's2'); manager.start(made.lobby, made.player.id);
-    const currentId = (made.lobby.game as { currentPlayerId: string }).currentPlayerId; const otherId = currentId === made.player.id ? joined.player.id : made.player.id;
-    manager.action(made.lobby, currentId, { type:'mau-mau:draw' });
-    const privateDraw = [...made.lobby.events].reverse().find((event) => event.type === 'game.cards.drawn');
-    expect(privateDraw).toMatchObject({ visibility:'private', recipientId:currentId, actorId:currentId }); expect(privateDraw?.data.cardIds).toHaveLength(1);
-    expect(manager.view(made.lobby, currentId).events.some((event) => event.id === privateDraw?.id)).toBe(true);
-    expect(manager.view(made.lobby, otherId).events.some((event) => event.id === privateDraw?.id)).toBe(false);
-    manager.close(made.lobby, 'test_finished'); manager.stop();
+    const made = await manager.create(
+      "Anna",
+      { gameId: "mau-mau", maxPlayers: 4, deckSize: 32, visibility: "public" },
+      "s1",
+    );
+    const joined = await manager.join(made.lobby, "Ben", undefined, "s2");
+    manager.start(made.lobby, made.player.id);
+    const currentId = (made.lobby.game as { currentPlayerId: string })
+      .currentPlayerId;
+    const otherId =
+      currentId === made.player.id ? joined.player.id : made.player.id;
+    manager.action(made.lobby, currentId, { type: "mau-mau:draw" });
+    const privateDraw = [...made.lobby.events]
+      .reverse()
+      .find((event) => event.type === "game.cards.drawn");
+    expect(privateDraw).toMatchObject({
+      visibility: "private",
+      recipientId: currentId,
+      actorId: currentId,
+    });
+    expect(privateDraw?.data.cardIds).toHaveLength(1);
+    expect(
+      manager
+        .view(made.lobby, currentId)
+        .events.some((event) => event.id === privateDraw?.id),
+    ).toBe(true);
+    expect(
+      manager
+        .view(made.lobby, otherId)
+        .events.some((event) => event.id === privateDraw?.id),
+    ).toBe(false);
+    manager.close(made.lobby, "test_finished");
+    manager.stop();
+  });
+  it("preserves Gin-Rommé settings from lobby creation through game start", async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create(
+      "Anna",
+      {
+        gameId: "romme",
+        maxPlayers: 2,
+        deckSize: 52,
+        visibility: "public",
+        rommeRules: {
+          variant: "gin",
+          openingPoints: 40,
+          requireDiscardUse: false,
+          ginTargetScore: 150,
+        },
+      },
+      "s1",
+    );
+    await manager.join(made.lobby, "Ben", undefined, "s2");
+
+    manager.start(made.lobby, made.player.id);
+
+    expect(made.lobby.rommeRules).toMatchObject({
+      variant: "gin",
+      ginTargetScore: 150,
+    });
+    expect(made.lobby.game).toMatchObject({
+      rules: { variant: "gin", ginTargetScore: 150 },
+      players: [{ hand: expect.any(Array) }, { hand: expect.any(Array) }],
+    });
+    expect(
+      made.lobby.game?.players.map((player) => player.hand.length),
+    ).toEqual([10, 10]);
+    manager.close(made.lobby, "test_finished");
+    manager.stop();
   });
 });

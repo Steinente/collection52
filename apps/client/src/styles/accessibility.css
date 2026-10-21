@@ -1,0 +1,335 @@
+/* Deliberately structural high-contrast mode: solid surfaces, strong edges and clear states. */
+:root.high-contrast {
+  --bg: #f2f2f2;
+  --surface: #fff;
+  --surface-2: #dfe3e1;
+  --text: #000;
+  --muted: #252d2a;
+  --border: #000;
+  --danger: #8b0000;
+  --focus: #005fcc;
+  --shadow: none;
+  --soft-shadow: none;
+  --lift-shadow: none;
+  --ui-shadow: none;
+  --control-shadow: none;
+  --button-shadow: none;
+  --shadow-soft: none;
+  --highlight: transparent;
+  --ambient-alpha: 0;
+}
+:root.high-contrast[data-theme="dark"] {
+  --bg: #000;
+  --surface: #080808;
+  --surface-2: #202020;
+  --text: #fff;
+  --muted: #e2e2e2;
+  --border: #fff;
+  --danger: #ff9d9d;
+  --focus: #ffd800;
+}
+@media (prefers-color-scheme: dark) {
+  :root.high-contrast[data-theme="system"] {
+    --bg: #000;
+    --surface: #080808;
+    --surface-2: #202020;
+    --text: #fff;
+    --muted: #e2e2e2;
+    --border: #fff;
+    --danger: #ff9d9d;
+    --focus: #ffd800;
+  }
+}
+.high-contrast body::before {
+  display: none;
+}
+.high-contrast .topbar {
+  border-bottom: 2px solid var(--border);
+  background: var(--surface);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.high-contrast .panel,
+.high-contrast .status-card,
+.high-contrast .lobby-list li,
+.high-contrast .retained-lobby,
+.high-contrast .game-catalog-card,
+.high-contrast .legal-content > section {
+  border: 2px solid var(--border);
+  background: var(--surface);
+  box-shadow: none;
+}
+.high-contrast .table {
+  background: var(--surface-2);
+}
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast .custom-select-trigger,
+.high-contrast .custom-select-list,
+.high-contrast .check,
+.high-contrast .fixed-setting > strong,
+.high-contrast .custom-accent-card,
+.high-contrast .accent-color-picker,
+.high-contrast .mau-mau-variant-settings,
+.high-contrast .romme-meld {
+  border-width: 2px;
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: none;
+}
+.high-contrast button.primary {
+  border: 2px solid var(--text);
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+}
+.high-contrast button:hover:not(:disabled),
+.high-contrast .footer-action:hover {
+  filter: none;
+  box-shadow: none;
+}
+.high-contrast button:disabled {
+  opacity: 0.62;
+  border-style: dashed;
+}
+.high-contrast :focus-visible {
+  outline: 4px solid var(--focus);
+  outline-offset: 3px;
+}
+.high-contrast .playing-card,
+.high-contrast .mau-mau-discard-card,
+.high-contrast .romme-table-card {
+  border: 3px solid #111;
+  background: #fff;
+  color: #000;
+  box-shadow: none;
+}
+.high-contrast .playing-card:disabled {
+  opacity: 0.58;
+  border-style: dashed;
+  background: #d8d8d8;
+  filter: saturate(0.55) contrast(1.08);
+}
+.high-contrast .playing-card.selected {
+  outline: 5px solid var(--focus);
+  outline-offset: 2px;
+}
+.high-contrast .playing-card.newly-drawn {
+  box-shadow: 0 0 0 5px var(--focus);
+}
+.high-contrast .footer-rules,
+.high-contrast .footer-action {
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: none;
+}
+.high-contrast .paypal-button {
+  border-color: #fff;
+  background: #00457c;
+  color: #fff;
+}
+.high-contrast .footer-center a,
+.high-contrast .legal-content a,
+.high-contrast .legal-back {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+.high-contrast .floating-error,
+.high-contrast .floating-notice,
+.high-contrast .update-prompt {
+  border: 2px solid var(--border);
+  border-left-width: 6px;
+  background: var(--surface);
+  box-shadow: none;
+}
+.high-contrast .eyebrow,
+.high-contrast .game-context,
+.high-contrast small,
+.high-contrast .status-card dt {
+  color: var(--text);
+}
+.playing-card.newly-drawn::after {
+  animation-name: new-hand-card-mark-long;
+  animation-duration: 2.5s;
+}
+@keyframes new-hand-card-mark-long {
+  0% {
+    opacity: 0;
+    transform: scale(0.45) rotate(-25deg);
+  }
+  12%,
+  81% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.75) rotate(18deg);
+  }
+}
+.gin-scoreboard {
+  align-content: start;
+}
+.gin-scores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+}
+.gin-scores > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.gin-scores span {
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.gin-scores small {
+  color: var(--muted);
+}
+.gin-hand-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.gin-hand-summary span {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.gin-round-result {
+  display: grid;
+  gap: 0.8rem;
+}
+.gin-round-result > h2,
+.gin-round-result > p {
+  margin: 0;
+}
+.gin-reveals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.gin-reveals article {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.gin-reveals h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.gin-reveals article > div {
+  display: grid;
+  gap: 0.25rem;
+}
+.gin-result-cards {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+@media (max-width: 760px) {
+  .gin-scores,
+  .gin-reveals {
+    grid-template-columns: 1fr;
+  }
+  .gin-board .romme-discard .button-row {
+    grid-template-columns: 1fr;
+  }
+  .gin-board .status-card {
+    grid-row: auto;
+  }
+}
+
+/* Reduced motion covers pseudo-elements and state-based movement as well as timed animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  button:hover:not(:disabled),
+  button:active:not(:disabled),
+  .footer-action:hover,
+  .paypal-button:hover,
+  .paypal-button:active,
+  .lobby-list li:hover,
+  .hand-cards .playing-card:hover:not(:disabled),
+  .playing-card.selected,
+  .knack-center-cards .playing-card:not(:disabled):hover,
+  .icon-close:hover:not(:disabled),
+  .icon-close:active:not(:disabled),
+  .floating-error-close:hover:not(:disabled),
+  .floating-error-close:active:not(:disabled),
+  .game-catalog .game-catalog-card:hover {
+    transform: none !important;
+  }
+  .button-pressed {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  .playing-card.newly-drawn {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .brand:hover .brand-card {
+    transform: rotate(-5deg) !important;
+  }
+  .footer-rules:hover::after {
+    opacity: 0 !important;
+    transform: translateX(-55%) !important;
+  }
+}
+.reduce-motion,
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  scroll-behavior: auto !important;
+  animation: none !important;
+  transition: none !important;
+}
+.reduce-motion button:hover:not(:disabled),
+.reduce-motion button:active:not(:disabled),
+.reduce-motion .footer-action:hover,
+.reduce-motion .paypal-button:hover,
+.reduce-motion .paypal-button:active,
+.reduce-motion .lobby-list li:hover,
+.reduce-motion .hand-cards .playing-card:hover:not(:disabled),
+.reduce-motion .playing-card.selected,
+.reduce-motion .knack-center-cards .playing-card:not(:disabled):hover,
+.reduce-motion .icon-close:hover:not(:disabled),
+.reduce-motion .icon-close:active:not(:disabled),
+.reduce-motion .floating-error-close:hover:not(:disabled),
+.reduce-motion .floating-error-close:active:not(:disabled),
+.reduce-motion .game-catalog .game-catalog-card:hover {
+  transform: none !important;
+}
+.reduce-motion .button-pressed {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+.reduce-motion .playing-card.newly-drawn {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.reduce-motion .brand:hover .brand-card {
+  transform: rotate(-5deg) !important;
+}
+.reduce-motion .footer-rules:hover::after {
+  opacity: 0 !important;
+  transform: translateX(-55%) !important;
+}

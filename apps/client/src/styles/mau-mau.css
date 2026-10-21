@@ -1,0 +1,224 @@
+/* Mau-Mau uses the same compact card-table language as the other games. */
+.mau-mau-board {
+  min-width: 0;
+  width: 100%;
+}
+.mau-mau-board > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.mau-mau-board .status-card dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mau-mau-board .status-card dd {
+  overflow-wrap: anywhere;
+}
+.mau-mau-table {
+  min-width: 0;
+  min-height: 220px;
+}
+.mau-mau-table .section-heading > * {
+  min-width: 0;
+}
+.mau-mau-piles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: clamp(1rem, 5vw, 4rem);
+  min-width: 0;
+  max-width: 100%;
+  padding: 1rem 0.5rem 0.75rem;
+}
+.mau-mau-discard-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 76px;
+  height: 108px;
+  border: 1px solid #d9dedb;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+  color: #111;
+  transform: rotate(-1.5deg);
+}
+.mau-mau-discard-card.stacked {
+  box-shadow:
+    0 10px 24px rgb(0 0 0/0.26),
+    -7px 6px 0 color-mix(in srgb, var(--surface-2) 88%, #fff);
+}
+.mau-mau-discard-card > span {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  width: 100%;
+  height: 100%;
+  padding: 0.52rem;
+}
+.mau-mau-discard-card b {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.mau-mau-discard-card i {
+  font-size: 1.25rem;
+  font-style: normal;
+  line-height: 1;
+}
+.mau-mau-discard-card .red {
+  color: #bd1733;
+}
+.mau-mau-suit {
+  display: grid;
+  gap: 0.25rem;
+  min-width: min(145px, 100%);
+  max-width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
+}
+.mau-mau-suit > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+.mau-mau-suit strong {
+  font-size: 1rem;
+}
+.red-suit {
+  color: #d74359;
+}
+.mau-mau-drawn-hint {
+  max-width: 100%;
+  padding: 0.28rem 0.58rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.playing-card.just-drawn {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent),
+    var(--ui-shadow);
+}
+.mau-mau-actions {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.mau-mau-actions h2 {
+  margin-bottom: 0;
+}
+.mau-mau-actions .button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+}
+.mau-mau-actions .button-row button {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+}
+.mau-mau-suit-choice {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.mau-mau-suit-choice legend {
+  padding: 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.mau-mau-suit-choice button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0.4rem 0.55rem;
+  white-space: normal;
+}
+.mau-mau-suit-choice button.selected {
+  border-color: var(--accent);
+  background: var(--accent-2);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.mau-mau-suit-choice button:nth-of-type(2) span,
+.mau-mau-suit-choice button:nth-of-type(3) span {
+  color: #d74359;
+}
+.mau-mau-board .result {
+  grid-column: 1/-1;
+}
+@media (max-width: 760px) {
+  .mau-mau-piles {
+    justify-content: flex-start;
+  }
+  .mau-mau-board .status-card dl {
+    grid-template-columns: 1fr 1fr;
+  }
+  .mau-mau-suit {
+    min-width: min(125px, 100%);
+  }
+}
+@media (max-width: 380px) {
+  .mau-mau-actions .button-row,
+  .mau-mau-suit-choice {
+    grid-template-columns: 1fr 1fr;
+  }
+  .mau-mau-piles {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+.mau-mau-variant-settings {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+.mau-mau-variant-settings > label {
+  align-self: start;
+  align-content: start;
+}
+.mau-mau-variant-settings legend {
+  padding: 0 0.4rem;
+  font-weight: 850;
+}
+.mau-mau-variant-settings .check {
+  align-items: flex-start;
+  padding: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.mau-mau-variant-settings .check > span {
+  display: grid;
+  gap: 0.14rem;
+}
+.mau-mau-variant-settings .check small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+@media (max-width: 620px) {
+  .mau-mau-variant-settings {
+    grid-template-columns: 1fr;
+  }
+}
