@@ -1079,6 +1079,37 @@ test("Rommé can be configured, started, and drawn from", async ({
     await expect(heading).toBeVisible();
     const code = (await heading.textContent())!.split(" ").at(-1)!;
     await rememberTestLobby(host, code);
+    const variantSelect = host.getByRole("combobox", {
+      name: /Game variant|Spielart/,
+    });
+    const variantButton = host.getByRole("button", {
+      name: /Game variant|Spielart/,
+    });
+    if (await variantSelect.count()) await variantSelect.selectOption("gin");
+    else {
+      await variantButton.click();
+      await host.getByRole("option", { name: /Gin Rummy|Gin-Rommé/ }).click();
+    }
+    await host
+      .getByRole("contentinfo")
+      .getByRole("button", { name: /Game rules|Spielregeln/ })
+      .click();
+    const ginRulesDialog = host.getByRole("dialog");
+    await expect(
+      ginRulesDialog.getByRole("tab", { name: /Gin Rummy|Gin-Rommé/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(ginRulesDialog.getByText(/^Scoring$|^Wertung$/)).toBeVisible();
+    await ginRulesDialog
+      .getByRole("button", { name: /Dismiss|Schließen/ })
+      .click();
+    if (await variantSelect.count())
+      await variantSelect.selectOption("classic");
+    else {
+      await variantButton.click();
+      await host
+        .getByRole("option", { name: /German Rummy|Klassisches Rommé/ })
+        .click();
+    }
     await expect(host.getByText(/110 cards|110 Karten/).first()).toBeVisible();
     const opening = host.getByRole("button", {
       name: /Initial meld minimum|Mindestwert der Erstmeldung/,

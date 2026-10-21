@@ -16,9 +16,11 @@ import { ResponsiveSelect, TextInput } from "./ui";
 export function LobbySettings({
   lobby,
   setError,
+  setSelectedRommeVariant,
 }: {
   lobby: PublicLobby;
   setError: (value: string) => void;
+  setSelectedRommeVariant: (variant: RommeRules["variant"]) => void;
 }) {
   const { t } = useTranslation();
   const [maxPlayers, setMaxPlayers] = useState(lobby.maxPlayers);
@@ -74,6 +76,7 @@ export function LobbySettings({
     }
     setSaved(false);
     setRommeRules({ ...rommeRules, variant });
+    setSelectedRommeVariant(variant);
     if (variant === "gin") setMaxPlayers(2);
   };
   return (

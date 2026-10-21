@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import type {
   LobbySummary,
   PublicLobby,
+  RommeRules,
   StructuredEvent,
 } from "@collection52/shared";
 import type { LegalPageKind } from "./LegalPages";
@@ -153,6 +154,9 @@ export function App() {
   const [prefs, setPrefs] = useState(loadPreferences);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [selectedRommeVariant, setSelectedRommeVariant] = useState<
+    RommeRules["variant"] | undefined
+  >();
   const [historyOpen, setHistoryOpen] = useState(false);
   const audioContext = useRef<AudioContext | undefined>(undefined);
   const previousActionCue = useRef("");
@@ -251,6 +255,9 @@ export function App() {
       setRetainedLobby(retained);
       setLobby(state);
       setEvents(state.events);
+      setSelectedRommeVariant(
+        state.gameId === "romme" ? state.rommeRules?.variant : undefined,
+      );
       setRestoringSession(false);
     };
     const onClosed = ({ reason }: { reason: string }) => {
@@ -259,6 +266,7 @@ export function App() {
       localStorage.removeItem(retainedLobbyStorageKey);
       setRetainedLobby(undefined);
       setLobby(undefined);
+      setSelectedRommeVariant(undefined);
       setRestoringSession(false);
       setPlayerId("");
       setWarning(undefined);
@@ -551,6 +559,7 @@ export function App() {
               protocolOpen={protocolOpen}
               setProtocolOpen={setProtocolOpen}
               setError={setError}
+              setSelectedRommeVariant={setSelectedRommeVariant}
               command={command}
               announce={announce}
             />
@@ -593,8 +602,9 @@ export function App() {
         >
           <Suspense fallback={<p className="legal-loading">{t("loading")}</p>}>
             <RulesContent
+              key={`romme-rules-${selectedRommeVariant ?? "classic"}`}
               gameId={lobby?.gameId ?? "durak"}
-              rommeVariant={lobby?.rommeRules?.variant}
+              rommeVariant={selectedRommeVariant ?? lobby?.rommeRules?.variant}
             />
           </Suspense>
         </Dialog>

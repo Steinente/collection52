@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GameId, RommeRules } from "@collection52/shared";
 
@@ -13,6 +13,9 @@ export function RulesContent({
   const [activeRommeVariant, setActiveRommeVariant] = useState<
     RommeRules["variant"]
   >(rommeVariant ?? "classic");
+  useEffect(() => {
+    setActiveRommeVariant(rommeVariant ?? "classic");
+  }, [rommeVariant]);
   if (gameId === "schwimmen")
     return (
       <div className="rules-content">

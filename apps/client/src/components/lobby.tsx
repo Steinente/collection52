@@ -31,6 +31,7 @@ export function LobbyView({
   protocolOpen,
   setProtocolOpen,
   setError,
+  setSelectedRommeVariant,
   command,
   announce,
 }: {
@@ -44,6 +45,7 @@ export function LobbyView({
   protocolOpen: boolean;
   setProtocolOpen: (v: boolean) => void;
   setError: (v: string) => void;
+  setSelectedRommeVariant: (variant: "classic" | "gin") => void;
   command: (
     event:
       | "game:start"
@@ -232,7 +234,13 @@ export function LobbyView({
           })}
         </ul>
       </section>
-      {isHost && !game && <LobbySettings lobby={lobby} setError={setError} />}
+      {isHost && !game && (
+        <LobbySettings
+          lobby={lobby}
+          setError={setError}
+          setSelectedRommeVariant={setSelectedRommeVariant}
+        />
+      )}
       {!game ? (
         <section className="waiting-room panel">
           <h2>{t("waiting")}</h2>
