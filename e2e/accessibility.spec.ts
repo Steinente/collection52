@@ -82,6 +82,13 @@ test("home is keyboard-ready and has no detectable WCAG A/AA violations", async 
     "data-accent",
     "collection",
   );
+  expect(
+    await page
+      .locator("body")
+      .evaluate((element) =>
+        getComputedStyle(element).getPropertyValue("user-select"),
+      ),
+  ).toBe("none");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
