@@ -59,7 +59,10 @@ export function LobbyView({
   const { t } = useTranslation();
   const [selected, setSelected] = useState<string[]>([]);
   const [target, setTarget] = useState("");
-  const [copyFeedback, setCopyFeedback] = useState("");
+  const [copiedAction, setCopiedAction] = useState<"code" | "link" | null>(
+    null,
+  );
+  const copyFeedbackTimer = useRef<number | undefined>(undefined);
   const isHost = lobby.hostId === playerId;
   const me = game?.players.find((p) => p.id === playerId);
   const enoughPlayers = lobby.players.length >= 2;
@@ -75,6 +78,14 @@ export function LobbyView({
     const list = protocolList.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [protocolEntries, protocolOpen]);
+  useEffect(
+    () => () => {
+      if (copyFeedbackTimer.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimer.current);
+      }
+    },
+    [],
+  );
   const sendAction = (action: object) =>
     socket.emit(
       "game:action",
@@ -87,16 +98,36 @@ export function LobbyView({
         }
       },
     );
-  const copy = async (text: string, message: string) => {
+  const copy = async (
+    text: string,
+    message: string,
+    action: "code" | "link",
+  ) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopyFeedback(message);
+      setCopiedAction(action);
+      if (copyFeedbackTimer.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimer.current);
+      }
+      copyFeedbackTimer.current = window.setTimeout(() => {
+        setCopiedAction(null);
+        copyFeedbackTimer.current = undefined;
+      }, 3000);
       announce(message);
     } catch {
       setError("clipboard_unavailable");
     }
   };
   const link = `${location.origin}${location.pathname}?lobby=${lobby.code}`;
+  const displayedGameName =
+    lobby.gameId === "romme"
+      ? t(
+          lobby.rommeRules?.variant === "gin"
+            ? "rommeVariantGin"
+            : "rommeVariantClassic",
+        )
+      : t(lobby.gameId);
+
   return (
     <>
       <section
@@ -107,11 +138,10 @@ export function LobbyView({
             className="game-context"
             aria-label={t("lobby", { code: lobby.code })}
           >
-            <h1 className="game-context-name">
-              {lobby.gameId === "romme" && lobby.rommeRules?.variant === "gin"
-                ? t("ginRomme")
-                : t(lobby.gameId)}
-            </h1>
+            <div className="game-identity">
+              <span className="game-identity-label">{t("currentGame")}</span>
+              <h1 className="game-context-name">{displayedGameName}</h1>
+            </div>
             <span>
               {t(
                 lobby.gameId === "romme"
@@ -132,12 +162,10 @@ export function LobbyView({
         ) : (
           <>
             <div className="lobby-context">
-              <h1>{t("lobby", { code: lobby.code })}</h1>
-              <span>
-                {lobby.gameId === "romme" && lobby.rommeRules?.variant === "gin"
-                  ? t("ginRomme")
-                  : t(lobby.gameId)}
-              </span>
+              <div className="game-identity">
+                <span className="game-identity-label">{t("currentGame")}</span>
+                <h1 className="lobby-context-game">{displayedGameName}</h1>
+              </div>
               <span>
                 {t(
                   lobby.gameId === "romme"
@@ -151,14 +179,33 @@ export function LobbyView({
                         : "cards52",
                 )}
               </span>
+              <span className="game-context-code">
+                {t("lobby", { code: lobby.code })}
+              </span>
             </div>
             <div className="share-block">
               <div className="share-actions">
-                <button onClick={() => void copy(lobby.code, t("codeCopied"))}>
-                  {t("copyCode")}
+                <button
+                  className={copiedAction === "code" ? "copy-success" : ""}
+                  aria-label={t("copyCode")}
+                  onClick={() => void copy(lobby.code, t("codeCopied"), "code")}
+                >
+                  <span aria-hidden="true">
+                    {copiedAction === "code"
+                      ? `✓ ${t("copied")}`
+                      : t("copyCode")}
+                  </span>
                 </button>
-                <button onClick={() => void copy(link, t("linkCopied"))}>
-                  {t("copyLink")}
+                <button
+                  className={copiedAction === "link" ? "copy-success" : ""}
+                  aria-label={t("copyLink")}
+                  onClick={() => void copy(link, t("linkCopied"), "link")}
+                >
+                  <span aria-hidden="true">
+                    {copiedAction === "link"
+                      ? `✓ ${t("copied")}`
+                      : t("copyLink")}
+                  </span>
                 </button>
                 {"share" in navigator && (
                   <button
@@ -170,11 +217,6 @@ export function LobbyView({
                   </button>
                 )}
               </div>
-              {copyFeedback && (
-                <p className="action-feedback" role="status">
-                  {copyFeedback}
-                </p>
-              )}
             </div>
           </>
         )}

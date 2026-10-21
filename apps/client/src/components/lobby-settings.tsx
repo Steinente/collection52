@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   MauMauRules,
@@ -69,6 +69,11 @@ export function LobbySettings({
     Boolean(password);
   const passwordReady =
     !passwordEnabled || lobby.passwordProtected || Boolean(password);
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
   const changeRommeVariant = (variant: RommeRules["variant"]) => {
     if (variant === "gin" && lobby.playerCount > 2) {
       setError("gin_requires_two_players");
