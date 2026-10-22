@@ -13,13 +13,23 @@
   --shadow: 0 12px 35px rgba(13, 39, 31, 0.09);
   --control-height: 48px;
   --header-control-height: 42px;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
+  --app-font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: var(--app-font-family);
   font-size: 16px;
+}
+:root[data-font-family="rounded"] {
+  --app-font-family:
+    "Trebuchet MS", "Arial Rounded MT Bold", ui-rounded, sans-serif;
+}
+:root[data-font-family="playful"] {
+  --app-font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive;
+}
+:root[data-font-family="serif"] {
+  --app-font-family: Georgia, "Times New Roman", serif;
+}
+:root[data-font-family="mono"] {
+  --app-font-family:
+    "Cascadia Mono", "Segoe UI Mono", ui-monospace, Consolas, monospace;
 }
 :root[data-theme="dark"] {
   --bg: #000;

@@ -818,6 +818,77 @@ dialog > .game-catalog {
   color: var(--muted);
   font-size: 0.72rem;
 }
+.font-family-settings {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.font-family-settings legend {
+  margin-bottom: 0.55rem;
+  font-weight: 800;
+}
+.font-family-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.55rem;
+}
+.font-family-option {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+.font-family-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  transform: translateY(-1px);
+}
+.font-family-option:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.font-family-option:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.font-family-option strong {
+  font-size: 0.82rem;
+}
+.font-family-option > span {
+  color: var(--muted);
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+[data-font-preview="system"] > span {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+[data-font-preview="rounded"] > span {
+  font-family: "Trebuchet MS", "Arial Rounded MT Bold", ui-rounded, sans-serif;
+}
+[data-font-preview="playful"] > span {
+  font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive;
+}
+[data-font-preview="serif"] > span {
+  font-family: Georgia, "Times New Roman", serif;
+}
+[data-font-preview="mono"] > span {
+  font-family:
+    "Cascadia Mono", "Segoe UI Mono", ui-monospace, Consolas, monospace;
+}
 .card-design-settings {
   min-width: 0;
   margin: 0;

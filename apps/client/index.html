@@ -48,8 +48,18 @@
         const t = p.theme || localStorage.getItem("c52:theme") || "system";
         document.documentElement.dataset.theme = t;
         document.documentElement.dataset.accent = p.accent || "system";
+        document.documentElement.dataset.fontFamily = [
+          "system",
+          "rounded",
+          "playful",
+          "serif",
+          "mono",
+        ].includes(p.fontFamily)
+          ? p.fontFamily
+          : "system";
       } catch {
         document.documentElement.dataset.accent = "system";
+        document.documentElement.dataset.fontFamily = "system";
       }
     </script>
     <title>Collection52</title>

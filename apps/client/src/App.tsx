@@ -239,6 +239,7 @@ export function App() {
     root.dataset.theme = prefs.theme;
     root.dataset.accent = prefs.accent;
     root.dataset.cardDesign = prefs.cardDesign;
+    root.dataset.fontFamily = prefs.fontFamily;
     root.style.setProperty("--card-rank-scale", String(prefs.cardRankScale));
     root.style.setProperty("--card-suit-scale", String(prefs.cardSuitScale));
     root.classList.toggle("large-text", prefs.largeText);

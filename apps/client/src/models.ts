@@ -289,11 +289,13 @@ export type RetainedLobby = {
 };
 
 export type CardDesign = "classic" | "four-color" | "outline" | "midnight";
+export type FontFamily = "system" | "rounded" | "playful" | "serif" | "mono";
 
 export type Preferences = {
   theme: "system" | "light" | "dark";
   accent: "collection" | "ocean" | "violet" | "amber" | "rose" | "custom";
   customAccent: string;
+  fontFamily: FontFamily;
   largeText: boolean;
   largeCards: boolean;
   cardRankScale: number;

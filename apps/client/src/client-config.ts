@@ -21,6 +21,7 @@ export const defaultPreferences: Preferences = {
   theme: "system",
   accent: "collection",
   customAccent: "#c42b1c",
+  fontFamily: "system",
   largeText: false,
   largeCards: false,
   cardRankScale: 1,
@@ -187,6 +188,13 @@ const cardDesignChoices: Preferences["cardDesign"][] = [
   "outline",
   "midnight",
 ];
+const fontFamilyChoices: Preferences["fontFamily"][] = [
+  "system",
+  "rounded",
+  "playful",
+  "serif",
+  "mono",
+];
 
 function preferenceScale(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value)
@@ -209,11 +217,17 @@ export function loadPreferences(): Preferences {
     )
       ? (stored.cardDesign as Preferences["cardDesign"])
       : defaultPreferences.cardDesign;
+    const fontFamily = fontFamilyChoices.includes(
+      stored.fontFamily as Preferences["fontFamily"],
+    )
+      ? (stored.fontFamily as Preferences["fontFamily"])
+      : defaultPreferences.fontFamily;
     return {
       ...defaultPreferences,
       ...stored,
       accent,
       cardDesign,
+      fontFamily,
       cardRankScale: preferenceScale(
         stored.cardRankScale,
         defaultPreferences.cardRankScale,

@@ -111,6 +111,13 @@ export function SettingsDialog({
       description: t("cardDesignMidnightDescription"),
     },
   ] as const;
+  const fontFamilies = [
+    { value: "system", label: t("fontFamilySystem") },
+    { value: "rounded", label: t("fontFamilyRounded") },
+    { value: "playful", label: t("fontFamilyPlayful") },
+    { value: "serif", label: t("fontFamilySerif") },
+    { value: "mono", label: t("fontFamilyMono") },
+  ] as const;
   const update = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
     setPrefs({ ...prefs, [key]: value });
   const customColor = validHexColor(prefs.customAccent)
@@ -209,6 +216,29 @@ export function SettingsDialog({
           aria-labelledby="settings-tab-display"
           hidden={activeTab !== "display"}
         >
+          <fieldset className="font-family-settings">
+            <legend>{t("fontFamily")}</legend>
+            <div className="font-family-options">
+              {fontFamilies.map((font) => (
+                <label
+                  className="font-family-option"
+                  data-font-preview={font.value}
+                  key={font.value}
+                >
+                  <input
+                    className="sr-only"
+                    type="radio"
+                    name="font-family"
+                    value={font.value}
+                    checked={prefs.fontFamily === font.value}
+                    onChange={() => update("fontFamily", font.value)}
+                  />
+                  <strong>{font.label}</strong>
+                  <span aria-hidden="true">Aa 52 ♠ ♥</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label>
             {t("accentColor")}
             <ResponsiveSelect
