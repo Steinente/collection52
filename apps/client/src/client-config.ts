@@ -31,12 +31,14 @@ export { defaultMauMauRules, defaultRommeRules };
 export const gameDefinitions = [
   {
     id: "durak",
+    gameId: "durak",
     nameKey: "durak",
     descriptionKey: "durakDescription",
     aliasesKey: "durakAliases",
   },
   {
     id: "schwimmen",
+    gameId: "schwimmen",
     nameKey: "schwimmen",
     descriptionKey: "knackDescription",
     aliasesKey: "knackAliases",
@@ -44,18 +46,31 @@ export const gameDefinitions = [
   },
   {
     id: "mau-mau",
+    gameId: "mau-mau",
     nameKey: "mau-mau",
     descriptionKey: "mauMauDescription",
     aliasesKey: "mauMauAliases",
   },
   {
     id: "romme",
-    nameKey: "romme",
+    gameId: "romme",
+    rommeVariant: "classic",
+    nameKey: "rommeVariantClassic",
     descriptionKey: "rommeDescription",
     aliasesKey: "rommeAliases",
-    searchAliasesKey: "rommeSearchAliases",
+  },
+  {
+    id: "gin-romme",
+    gameId: "romme",
+    rommeVariant: "gin",
+    nameKey: "rommeVariantGin",
+    descriptionKey: "ginRommeDescription",
+    aliasesKey: "ginRommeAliases",
+    searchAliasesKey: "ginRommeSearchAliases",
   },
 ] as const;
+
+export type GameSelectionId = (typeof gameDefinitions)[number]["id"];
 
 export const suitSymbols: Record<Suit, string> = {
   clubs: "♣",
@@ -229,4 +244,4 @@ export const isValidUsername = (name: string) =>
 export const eventTranslationKey = (type: string) =>
   `event_${type.replaceAll(".", "_")}`;
 export const isGameId = (value: string): value is GameId =>
-  gameDefinitions.some((game) => game.id === value);
+  gameDefinitions.some((game) => game.gameId === value);

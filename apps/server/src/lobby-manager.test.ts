@@ -577,6 +577,7 @@ describe("LobbyManager", () => {
       variant: "gin",
       ginTargetScore: 150,
     });
+    expect(manager.summary(made.lobby).rommeVariant).toBe("gin");
     expect(made.lobby.game).toMatchObject({
       rules: { variant: "gin", ginTargetScore: 150 },
       players: [{ hand: expect.any(Array) }, { hand: expect.any(Array) }],

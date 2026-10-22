@@ -86,7 +86,13 @@ export function LobbySettings({
     setRommeRules(next);
     saveUpdate(
       { ...extraUpdate, rommeRules: next },
-      () => localStorage.setItem(storageKeys.rommeRules, JSON.stringify(next)),
+      () => {
+        localStorage.setItem(storageKeys.rommeRules, JSON.stringify(next));
+        localStorage.setItem(
+          storageKeys.selectedGame,
+          next.variant === "gin" ? "gin-romme" : "romme",
+        );
+      },
       () => setRommeRules(previous),
     );
   };

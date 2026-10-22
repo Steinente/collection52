@@ -1052,13 +1052,22 @@ test("Rommé can be configured, started, and drawn from", async ({
     await host
       .getByRole("button", { name: /Show all games|Alle Spiele anzeigen/ })
       .click();
-    const rommeCard = host
-      .getByRole("dialog")
+    const gamesDialog = host.getByRole("dialog");
+    const classicRommeCard = gamesDialog
       .locator(".game-catalog-card")
-      .filter({ hasText: /Rommé|German Rummy/ });
-    await expect(rommeCard).toBeVisible();
-    await expect(rommeCard).toContainText(/Gin-Rommé|Gin Rummy/);
-    await rommeCard.getByRole("button", { name: /Select|Auswählen/ }).click();
+      .filter({ hasText: /Klassisches Rommé|German Rummy/ });
+    const ginRommeCard = gamesDialog.locator(".game-catalog-card").filter({
+      hasText: /Gin-Rommé|Gin Rummy/,
+    });
+    await expect(classicRommeCard).toBeVisible();
+    await expect(ginRommeCard).toBeVisible();
+    await expect(classicRommeCard).not.toContainText(/Gin-Rommé|Gin Rummy/);
+    await ginRommeCard
+      .getByRole("button", { name: /Select|Auswählen/ })
+      .click();
+    await expect
+      .poll(() => host.evaluate(() => localStorage.getItem("c52:game")))
+      .toBe("gin-romme");
     await host
       .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
       .click();
@@ -1070,11 +1079,9 @@ test("Rommé can be configured, started, and drawn from", async ({
     const variantButton = host.getByRole("button", {
       name: /Game variant|Spielart/,
     });
-    if (await variantSelect.count()) await variantSelect.selectOption("gin");
-    else {
-      await variantButton.click();
-      await host.getByRole("option", { name: /Gin Rummy|Gin-Rommé/ }).click();
-    }
+    if (await variantSelect.count())
+      await expect(variantSelect).toHaveValue("gin");
+    else await expect(variantButton).toContainText(/Gin Rummy|Gin-Rommé/);
     await host
       .getByRole("contentinfo")
       .getByRole("button", { name: /Game rules|Spielregeln/ })
@@ -1095,6 +1102,9 @@ test("Rommé can be configured, started, and drawn from", async ({
         .getByRole("option", { name: /German Rummy|Klassisches Rommé/ })
         .click();
     }
+    await expect
+      .poll(() => host.evaluate(() => localStorage.getItem("c52:game")))
+      .toBe("romme");
     await expect(host.getByText(/110 cards|110 Karten/).first()).toBeVisible();
     const opening = host.getByRole("button", {
       name: /Initial meld minimum|Mindestwert der Erstmeldung/,
@@ -1113,9 +1123,6 @@ test("Rommé can be configured, started, and drawn from", async ({
         name: /Use a picked-up discard|Aufgenommene Ablagekarte/,
       })
       .check();
-    await host
-      .getByRole("button", { name: /Save settings|Einstellungen speichern/ })
-      .click();
     await guest.goto("/");
     await guest.getByLabel(/Display name|Benutzername/).fill("Berni");
     await guest.getByLabel(/Lobby code|Lobby-Code/).fill(code);

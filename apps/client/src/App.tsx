@@ -317,6 +317,9 @@ export function App() {
       const retained = {
         code: state.code,
         gameId: state.gameId,
+        ...(state.gameId === "romme"
+          ? { rommeVariant: state.rommeRules?.variant ?? "classic" }
+          : {}),
         status: state.status,
       } as const;
       localStorage.setItem(retainedLobbyStorageKey, JSON.stringify(retained));

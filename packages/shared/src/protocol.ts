@@ -133,6 +133,7 @@ export type GameAction = z.infer<typeof actionSchema>;
 export type LobbySummary = {
   code: string;
   gameId: GameId;
+  rommeVariant?: z.infer<typeof rommeRulesSchema>["variant"];
   status: "waiting" | "playing";
   playerCount: number;
   maxPlayers: number;

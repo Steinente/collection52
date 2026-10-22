@@ -173,6 +173,9 @@ export class LobbyManager {
     return {
       code: l.code,
       gameId: l.gameId,
+      ...(l.gameId === "romme"
+        ? { rommeVariant: l.rommeRules.variant }
+        : {}),
       status: l.status,
       playerCount: l.players.length,
       maxPlayers: l.maxPlayers,

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import type { GameId, LobbySummary } from "@collection52/shared";
+import type { LobbySummary } from "@collection52/shared";
 import {
+  type GameSelectionId,
   gameDefinitions,
   hasMinimumUsernameLetters,
   invitationCode,
@@ -50,10 +51,10 @@ export function Home({
   >("idle");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [gameSearch, setGameSearch] = useState("");
-  const [selectedGame, setSelectedGame] = useState<GameId>(() => {
+  const [selectedGame, setSelectedGame] = useState<GameSelectionId>(() => {
     const stored = localStorage.getItem(storageKeys.selectedGame);
     return gameDefinitions.some((game) => game.id === stored)
-      ? (stored as GameId)
+      ? (stored as GameSelectionId)
       : "durak";
   });
   const [nameTouched, setNameTouched] = useState(
@@ -148,6 +149,9 @@ export function Home({
         normalizeGameSearch(text).includes(normalizedGameSearch),
       ),
   );
+  const selectedGameDefinition =
+    gameDefinitions.find((game) => game.id === selectedGame) ??
+    gameDefinitions[0];
   useEffect(() => {
     setPassword("");
     setPasswordRequired(false);
@@ -249,7 +253,14 @@ export function Home({
             <h1 id="retained-lobby-title">{t("activeLobbyTitle")}</h1>
             <p>
               {t("activeLobbyExplanation", {
-                game: t(retainedLobby.gameId),
+                game:
+                  retainedLobby.gameId === "romme"
+                    ? t(
+                        retainedLobby.rommeVariant === "gin"
+                          ? "rommeVariantGin"
+                          : "rommeVariantClassic",
+                      )
+                    : t(retainedLobby.gameId),
                 code: retainedLobby.code,
               })}
             </p>
@@ -294,7 +305,9 @@ export function Home({
             <ResponsiveSelect
               label={t("game")}
               value={selectedGame}
-              onChange={(value) => setSelectedGame(value as GameId)}
+              onChange={(value) =>
+                setSelectedGame(value as GameSelectionId)
+              }
               options={games.map((game) => ({
                 value: game.id,
                 label: game.name,
@@ -361,26 +374,36 @@ export function Home({
             )
               return;
             localStorage.setItem(storageKeys.playerName, name);
+            const gameId = selectedGameDefinition.gameId;
+            const rommeVariant =
+              "rommeVariant" in selectedGameDefinition
+                ? selectedGameDefinition.rommeVariant
+                : undefined;
             socket.emit(
               "lobby:create",
               {
                 name,
                 accentColor: playerAccentColor,
                 settings: {
-                  gameId: selectedGame,
-                  maxPlayers: 4,
+                  gameId,
+                  maxPlayers: rommeVariant === "gin" ? 2 : 4,
                   deckSize:
-                    selectedGame === "durak"
+                    gameId === "durak"
                       ? 36
-                      : selectedGame === "romme"
+                      : gameId === "romme"
                         ? 52
                         : 32,
                   visibility: createVisibility,
-                  ...(selectedGame === "mau-mau"
+                  ...(gameId === "mau-mau"
                     ? { mauMauRules: loadMauMauRules() }
                     : {}),
-                  ...(selectedGame === "romme"
-                    ? { rommeRules: loadRommeRules() }
+                  ...(gameId === "romme"
+                    ? {
+                        rommeRules: {
+                          ...loadRommeRules(),
+                          variant: rommeVariant ?? "classic",
+                        },
+                      }
                     : {}),
                   ...(createPasswordEnabled
                     ? { password: createPassword }
@@ -459,7 +482,15 @@ export function Home({
               return (
                 <li key={l.code}>
                   <div className="lobby-summary">
-                    <strong>{t(l.gameId)}</strong>
+                    <strong>
+                      {l.gameId === "romme"
+                        ? t(
+                            l.rommeVariant === "gin"
+                              ? "rommeVariantGin"
+                              : "rommeVariantClassic",
+                          )
+                        : t(l.gameId)}
+                    </strong>
                     <span>{t("lobbyHost", { name: l.hostName })}</span>
                     <span>
                       {l.code} · {t(l.status)} ·{" "}

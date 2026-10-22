@@ -137,6 +137,7 @@ export type ProtocolEntry = {
 export type RetainedLobby = {
   code: string;
   gameId: GameId;
+  rommeVariant?: RommeRules["variant"];
   status: "waiting" | "playing";
 };
 
