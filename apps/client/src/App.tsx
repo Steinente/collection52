@@ -91,8 +91,13 @@ function actionCueKey(game: AnyGameView | undefined, playerId: string): string {
   const player = game.players.find((candidate) => candidate.id === playerId);
   if (!player?.connected || game.phase === "finished") return "";
   if ("currentPlayerId" in game)
-    return (game.phase === "playing" || game.phase === "bidding") &&
-      game.currentPlayerId === playerId
+    return [
+      "playing",
+      "bidding",
+      "skat-choice",
+      "discarding",
+      "declaring",
+    ].includes(game.phase) && game.currentPlayerId === playerId
       ? `${game.id}:turn`
       : "";
   const durakPlayer = game.players.find(
@@ -801,7 +806,9 @@ export function App() {
                       ? "ohHellRulesTitle"
                       : lobby?.gameId === "cheat"
                         ? "cheatRulesTitle"
-                        : "rulesTitle",
+                        : lobby?.gameId === "skat"
+                          ? "skatRulesTitle"
+                          : "rulesTitle",
           )}
           close={() => setRulesOpen(false)}
         >

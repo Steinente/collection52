@@ -165,6 +165,38 @@ test("home is keyboard-ready and has no detectable WCAG A/AA violations", async 
   await expect(
     gamesDialog.locator(".game-alias-chip").filter({ hasText: "Fool" }),
   ).toHaveCount(0);
+  const playerCountFilter =
+    testInfo.project.name === "mobile-chromium"
+      ? gamesDialog.getByRole("combobox", {
+          name: /Player count|Spielerzahl/,
+        })
+      : gamesDialog.getByRole("button", {
+          name: /Player count|Spielerzahl/,
+        });
+  if (testInfo.project.name === "mobile-chromium") {
+    await playerCountFilter.selectOption("4");
+  } else {
+    await playerCountFilter.click();
+    await gamesDialog
+      .getByRole("option", { name: /4 players|4 Personen/ })
+      .click();
+  }
+  await expect(
+    gamesDialog.locator(".game-catalog-card").filter({ hasText: /Spades/ }),
+  ).toBeVisible();
+  await expect(
+    gamesDialog.locator(".game-catalog-card").filter({ hasText: /Gin-/ }),
+  ).toHaveCount(0);
+  if (testInfo.project.name === "mobile-chromium") {
+    await playerCountFilter.selectOption("all");
+  } else {
+    await playerCountFilter.click();
+    await gamesDialog
+      .getByRole("option", {
+        name: /All player counts|Alle Spielerzahlen/,
+      })
+      .click();
+  }
   await searchGames.fill("Mau Mau");
   const mauMauGame = gamesDialog
     .locator(".game-catalog-card")
@@ -204,6 +236,13 @@ test("home is keyboard-ready and has no detectable WCAG A/AA violations", async 
     reopenedGamesDialog.getByText(/No game found|Kein Spiel gefunden/),
   ).toBeVisible();
   await reopenedSearchGames.fill("Skat");
+  await expect(
+    reopenedGamesDialog
+      .locator(".game-catalog-card")
+      .filter({ hasText: /^Skat/ }),
+  ).toBeVisible();
+  await expect(reopenedGamesDialog.locator(".game-alias-chip")).toHaveCount(0);
+  await reopenedSearchGames.fill("Definitely missing");
   await expect(
     reopenedGamesDialog.getByText(/No game found|Kein Spiel gefunden/),
   ).toBeVisible();
@@ -269,6 +308,7 @@ test("home is keyboard-ready and has no detectable WCAG A/AA violations", async 
     .getByRole("button", { name: /^Settings$|^Einstellungen$/ })
     .click();
   const settings = page.getByRole("dialog");
+  await settings.getByRole("tab", { name: /Display|Darstellung/ }).click();
   const accentLabel = /Accent color|Akzentfarbe/;
   if (testInfo.project.name === "mobile-chromium") {
     const accent = settings.getByRole("combobox", { name: accentLabel });
@@ -1392,7 +1432,7 @@ test("Canasta is a responsive, accessible four-player Rommé-family game", async
   }
 });
 
-test("Spades, Oh Hell and Cheat are playable, responsive and accessible", async ({
+test("Spades, Oh Hell, Cheat and Skat are playable, responsive and accessible", async ({
   page,
   browser,
 }) => {
@@ -1417,6 +1457,14 @@ test("Spades, Oh Hell and Cheat are playable, responsive and accessible", async 
       guests: ["Berta"],
       board: ".cheat-board",
       handSize: 26,
+    },
+    {
+      id: "skat",
+      cardText:
+        /classic bidding and trick-taking|Klassisches deutsches Reiz- und Stichspiel/,
+      guests: ["Berta", "Carla"],
+      board: ".skat-game-board",
+      handSize: 10,
     },
   ] as const;
 

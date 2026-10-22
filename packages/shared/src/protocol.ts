@@ -26,6 +26,7 @@ export const gameIdSchema = z.enum([
   "spades",
   "oh-hell",
   "cheat",
+  "skat",
 ]);
 export const mauMauRulesSchema = z.object({
   stackSevens: z.boolean(),
@@ -56,6 +57,12 @@ export const cheatRulesSchema = z.object({
   direction: z.enum(["ascending", "descending"]).default("ascending"),
   maxCardsPerTurn: z.number().int().min(1).max(8).default(4),
 });
+export const skatRulesSchema = z.object({
+  roundsPerPlayer: z
+    .union([z.literal(3), z.literal(6), z.literal(9), z.literal(12)])
+    .default(3),
+  tournamentScoring: z.boolean().default(false),
+});
 export const lobbySettingsSchema = z
   .object({
     gameId: gameIdSchema.default("durak"),
@@ -68,6 +75,7 @@ export const lobbySettingsSchema = z
     spadesRules: spadesRulesSchema.optional(),
     ohHellRules: ohHellRulesSchema.optional(),
     cheatRules: cheatRulesSchema.optional(),
+    skatRules: skatRulesSchema.optional(),
   })
   .superRefine((settings, context) => {
     if (
@@ -100,6 +108,12 @@ export const lobbySettingsSchema = z
         path: ["deckSize"],
         message: "invalid_52_card_deck",
       });
+    if (settings.gameId === "skat" && settings.deckSize !== 32)
+      context.addIssue({
+        code: "custom",
+        path: ["deckSize"],
+        message: "invalid_32_card_deck",
+      });
   });
 export const lobbyUpdateSchema = z.object({
   maxPlayers: z.number().int().min(2).max(10).optional(),
@@ -111,6 +125,7 @@ export const lobbyUpdateSchema = z.object({
   spadesRules: spadesRulesSchema.optional(),
   ohHellRules: ohHellRulesSchema.optional(),
   cheatRules: cheatRulesSchema.optional(),
+  skatRules: skatRulesSchema.optional(),
 });
 export const actionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -184,6 +199,32 @@ export const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("cheat:challenge") }),
   z.object({ type: z.literal("cheat:accept") }),
+  z.object({
+    type: z.literal("skat:bid"),
+    bid: z.number().int().min(18).max(264),
+  }),
+  z.object({ type: z.literal("skat:hold") }),
+  z.object({ type: z.literal("skat:pass") }),
+  z.object({ type: z.literal("skat:pick-up") }),
+  z.object({ type: z.literal("skat:choose-hand") }),
+  z.object({
+    type: z.literal("skat:discard"),
+    cardIds: z.array(z.string().min(1)).length(2),
+  }),
+  z.object({
+    type: z.literal("skat:declare"),
+    contract: z.enum([
+      "clubs",
+      "diamonds",
+      "hearts",
+      "spades",
+      "grand",
+      "null",
+    ]),
+    announcement: z.enum(["none", "schneider", "schwarz", "ouvert"]),
+  }),
+  z.object({ type: z.literal("skat:play"), cardId: z.string().min(1) }),
+  z.object({ type: z.literal("skat:next-round") }),
 ]);
 
 export type GameId = z.infer<typeof gameIdSchema>;
@@ -218,6 +259,7 @@ export type PublicLobby = LobbySummary & {
   spadesRules?: z.infer<typeof spadesRulesSchema>;
   ohHellRules?: z.infer<typeof ohHellRulesSchema>;
   cheatRules?: z.infer<typeof cheatRulesSchema>;
+  skatRules?: z.infer<typeof skatRulesSchema>;
   game?: unknown;
   events: StructuredEvent[];
 };

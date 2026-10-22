@@ -7,6 +7,7 @@ import {
   applySpadesAction,
   applyOhHellAction,
   applyCheatAction,
+  applySkatAction,
   createDurakGame,
   createKnackGame,
   createMauMauGame,
@@ -14,6 +15,7 @@ import {
   createSpadesGame,
   createOhHellGame,
   createCheatGame,
+  createSkatGame,
   withdrawDurakPlayer,
   withdrawKnackPlayer,
   withdrawRommePlayer,
@@ -38,6 +40,9 @@ import {
   type CheatAction,
   type CheatRules,
   type CheatState,
+  type SkatAction,
+  type SkatRules,
+  type SkatState,
   type StructuredEvent,
 } from "@collection52/shared";
 
@@ -48,7 +53,8 @@ export type GameState =
   | RommeState
   | SpadesState
   | OhHellState
-  | CheatState;
+  | CheatState
+  | SkatState;
 export type GameParticipant = { id: string; name: string; connected?: boolean };
 
 type CreateGameOptions = {
@@ -61,6 +67,7 @@ type CreateGameOptions = {
   spadesRules: SpadesRules;
   ohHellRules: OhHellRules;
   cheatRules: CheatRules;
+  skatRules: SkatRules;
 };
 
 export function createGame(options: CreateGameOptions): GameState {
@@ -78,6 +85,8 @@ export function createGame(options: CreateGameOptions): GameState {
       return createOhHellGame(id, players, randomInt, options.ohHellRules);
     case "cheat":
       return createCheatGame(id, players, randomInt, options.cheatRules);
+    case "skat":
+      return createSkatGame(id, players, randomInt, options.skatRules);
     case "durak":
       return createDurakGame(
         id,
@@ -145,6 +154,14 @@ export function applyGameAction(
         playerId,
         action as CheatAction,
       );
+    case "skat":
+      if (!action.type.startsWith("skat:")) throw new Error("invalid_action");
+      return applySkatAction(
+        game as SkatState,
+        playerId,
+        action as SkatAction,
+        randomInt,
+      );
     case "durak":
       if (action.type.includes(":")) throw new Error("invalid_action");
       return applyDurakAction(
@@ -206,6 +223,17 @@ export function gameActionEventData(
       return { cardId: action.cardId };
     case "cheat:play":
       return { count: action.cardIds.length };
+    case "skat:bid":
+      return { bid: action.bid };
+    case "skat:discard":
+      return { count: action.cardIds.length };
+    case "skat:declare":
+      return {
+        contract: action.contract,
+        announcement: action.announcement,
+      };
+    case "skat:play":
+      return { cardId: action.cardId };
     default:
       return {};
   }
@@ -223,6 +251,8 @@ export function recordsPrivateDraws(
     action.type === "spades:next-round" ||
     action.type === "oh-hell:next-round" ||
     action.type === "cheat:challenge" ||
+    action.type === "skat:pick-up" ||
+    action.type === "skat:next-round" ||
     action.type === "schwimmen:next-round"
   );
 }
@@ -244,6 +274,7 @@ export function withdrawPlayer(
     case "spades":
     case "oh-hell":
     case "cheat":
+    case "skat":
       return undefined;
   }
 }

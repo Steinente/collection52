@@ -19,6 +19,11 @@ import type {
   OhHellRoundResult,
   CheatRules,
   Rank,
+  SkatRules,
+  SkatRoundResult,
+  SkatContract,
+  SkatAnnouncement,
+  SkatPhase,
 } from "@collection52/shared";
 
 export type Ack = AckResult;
@@ -218,6 +223,49 @@ export type CheatGameView = {
   result?: { winnerId: string };
 };
 
+export type SkatGameView = {
+  id: string;
+  version: number;
+  phase: SkatPhase;
+  players: Array<{
+    id: string;
+    name: string;
+    connected: boolean;
+    hand: Card[];
+    handCount?: number;
+    active: boolean;
+    tricks: number;
+    wonCards: Card[];
+    score: number;
+    wonGames: number;
+    lostGames: number;
+  }>;
+  dealerId: string;
+  activePlayerIds: string[];
+  forehandId: string;
+  middlehandId: string;
+  rearhandId: string;
+  currentPlayerId: string;
+  bidderId?: string;
+  listenerId?: string;
+  auctionStage: 1 | 2 | "forehand";
+  highestBid: number;
+  pendingBid?: number;
+  skat: Card[];
+  skatCount: number;
+  skatPickedUp: boolean;
+  declarerId?: string;
+  handGame: boolean;
+  contract?: SkatContract;
+  announcement: SkatAnnouncement;
+  trick: Array<{ playerId: string; card: Card }>;
+  dealNumber: number;
+  totalDeals: number;
+  rules: SkatRules;
+  roundResult?: SkatRoundResult;
+  result?: { winnerIds: string[] };
+};
+
 export type AnyGameView =
   | DurakGameView
   | SchwimmenGameView
@@ -225,7 +273,8 @@ export type AnyGameView =
   | RommeGameView
   | SpadesGameView
   | OhHellGameView
-  | CheatGameView;
+  | CheatGameView
+  | SkatGameView;
 export type ProtocolEntry = {
   id: string;
   timestamp: number;

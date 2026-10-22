@@ -34,6 +34,36 @@ describe("gameDefinitions", () => {
       ]),
     );
   });
+  it("lists Skat under its established name without misleading aliases", () => {
+    expect(gameDefinitions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "skat", gameId: "skat" }),
+      ]),
+    );
+    expect(de.skatAliases).toEqual([]);
+    expect(en.skatAliases).toEqual([]);
+  });
+  it("declares the supported player range for every selectable game", () => {
+    expect(
+      Object.fromEntries(
+        gameDefinitions.map(({ id, minPlayers, maxPlayers }) => [
+          id,
+          [minPlayers, maxPlayers],
+        ]),
+      ),
+    ).toEqual({
+      durak: [2, 6],
+      schwimmen: [2, 6],
+      "mau-mau": [2, 6],
+      romme: [2, 6],
+      "gin-romme": [2, 2],
+      canasta: [4, 4],
+      spades: [4, 4],
+      "oh-hell": [3, 7],
+      cheat: [2, 10],
+      skat: [3, 4],
+    });
+  });
   it("uses researched, language-specific aliases", () => {
     expect(de.spadesAliases).toEqual([]);
     expect(en.spadesAliases).toEqual([]);

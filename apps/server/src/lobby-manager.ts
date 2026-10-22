@@ -13,12 +13,14 @@ import {
   defaultSpadesRules,
   defaultOhHellRules,
   defaultCheatRules,
+  defaultSkatRules,
   knackPlayerView,
   mauMauPlayerView,
   rommePlayerView,
   spadesPlayerView,
   ohHellPlayerView,
   cheatPlayerView,
+  skatPlayerView,
   shuffle,
   playerView as durakPlayerView,
   type DurakState,
@@ -37,6 +39,8 @@ import {
   type OhHellState,
   type CheatRules,
   type CheatState,
+  type SkatRules,
+  type SkatState,
   type StructuredEvent,
 } from "@collection52/shared";
 import {
@@ -73,6 +77,7 @@ export type Lobby = {
   spadesRules: SpadesRules;
   ohHellRules: OhHellRules;
   cheatRules: CheatRules;
+  skatRules: SkatRules;
   passwordHash?: string;
   passwordSalt?: string;
   hostId: string;
@@ -104,6 +109,7 @@ export type CreateLobbySettings = {
   spadesRules?: SpadesRules | undefined;
   ohHellRules?: OhHellRules | undefined;
   cheatRules?: CheatRules | undefined;
+  skatRules?: SkatRules | undefined;
 };
 const hashToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
@@ -215,7 +221,9 @@ export class LobbyManager {
                 ? ohHellPlayerView(lobby.game as OhHellState, playerId)
                 : lobby.gameId === "cheat"
                   ? cheatPlayerView(lobby.game as CheatState, playerId)
-                  : durakPlayerView(lobby.game as DurakState, playerId)
+                  : lobby.gameId === "skat"
+                    ? skatPlayerView(lobby.game as SkatState, playerId)
+                    : durakPlayerView(lobby.game as DurakState, playerId)
       : undefined;
     return {
       ...this.summary(lobby),
@@ -235,6 +243,7 @@ export class LobbyManager {
       ...(lobby.gameId === "spades" ? { spadesRules: lobby.spadesRules } : {}),
       ...(lobby.gameId === "oh-hell" ? { ohHellRules: lobby.ohHellRules } : {}),
       ...(lobby.gameId === "cheat" ? { cheatRules: lobby.cheatRules } : {}),
+      ...(lobby.gameId === "skat" ? { skatRules: lobby.skatRules } : {}),
       events: lobby.events.filter(
         (event) =>
           event.visibility === "public" || event.recipientId === playerId,
@@ -388,21 +397,24 @@ export class LobbyManager {
       maxPlayers:
         gameId === "spades"
           ? 4
-          : gameId === "oh-hell"
-            ? Math.min(7, Math.max(3, settings.maxPlayers))
-            : gameId === "romme" && rommeRules.variant === "gin"
-              ? 2
-              : gameId === "romme" && rommeRules.variant === "canasta"
-                ? 4
-                : gameId === "cheat"
-                  ? Math.min(10, settings.maxPlayers)
-                  : Math.min(6, settings.maxPlayers),
+          : gameId === "skat"
+            ? Math.min(4, Math.max(3, settings.maxPlayers))
+            : gameId === "oh-hell"
+              ? Math.min(7, Math.max(3, settings.maxPlayers))
+              : gameId === "romme" && rommeRules.variant === "gin"
+                ? 2
+                : gameId === "romme" && rommeRules.variant === "canasta"
+                  ? 4
+                  : gameId === "cheat"
+                    ? Math.min(10, settings.maxPlayers)
+                    : Math.min(6, settings.maxPlayers),
       deckSize,
       mauMauRules: { ...defaultMauMauRules, ...settings.mauMauRules },
       rommeRules,
       spadesRules: { ...defaultSpadesRules, ...settings.spadesRules },
       ohHellRules: { ...defaultOhHellRules, ...settings.ohHellRules },
       cheatRules: { ...defaultCheatRules, ...settings.cheatRules },
+      skatRules: { ...defaultSkatRules, ...settings.skatRules },
       hostId: player.id,
       players: [player],
       gameNumber: 0,
@@ -551,6 +563,11 @@ export class LobbyManager {
     if (lobby.gameId === "spades" && lobby.players.length !== 4)
       throw new Error("spades_requires_four_players");
     if (
+      lobby.gameId === "skat" &&
+      (lobby.players.length < 3 || lobby.players.length > 4)
+    )
+      throw new Error("skat_requires_three_or_four_players");
+    if (
       lobby.gameId === "oh-hell" &&
       (lobby.players.length < 3 || lobby.players.length > 7)
     )
@@ -567,6 +584,7 @@ export class LobbyManager {
       spadesRules: lobby.spadesRules,
       ohHellRules: lobby.ohHellRules,
       cheatRules: lobby.cheatRules,
+      skatRules: lobby.skatRules,
     });
     lobby.players = players;
     lobby.game = game;
@@ -591,6 +609,7 @@ export class LobbyManager {
       spadesRules?: SpadesRules | undefined;
       ohHellRules?: OhHellRules | undefined;
       cheatRules?: CheatRules | undefined;
+      skatRules?: SkatRules | undefined;
     },
   ) {
     if (lobby.hostId !== playerId) throw new Error("host_only");
@@ -613,6 +632,11 @@ export class LobbyManager {
       if (lobby.gameId === "spades" && settings.maxPlayers !== 4)
         throw new Error("spades_requires_four_players");
       if (
+        lobby.gameId === "skat" &&
+        (settings.maxPlayers < 3 || settings.maxPlayers > 4)
+      )
+        throw new Error("skat_requires_three_or_four_players");
+      if (
         lobby.gameId === "romme" &&
         lobby.rommeRules.variant === "gin" &&
         settings.maxPlayers !== 2
@@ -630,7 +654,7 @@ export class LobbyManager {
       )
         throw new Error("oh_hell_requires_three_to_seven_players");
       if (
-        !["oh-hell", "cheat"].includes(lobby.gameId) &&
+        !["oh-hell", "cheat", "skat"].includes(lobby.gameId) &&
         settings.maxPlayers > 6
       )
         throw new Error("invalid_player_count");
@@ -653,6 +677,8 @@ export class LobbyManager {
       lobby.ohHellRules = { ...defaultOhHellRules, ...settings.ohHellRules };
     if (settings.cheatRules !== undefined && lobby.gameId === "cheat")
       lobby.cheatRules = { ...defaultCheatRules, ...settings.cheatRules };
+    if (settings.skatRules !== undefined && lobby.gameId === "skat")
+      lobby.skatRules = { ...defaultSkatRules, ...settings.skatRules };
     if (settings.password !== undefined) {
       if (settings.password) {
         const result = await this.hashPassword(settings.password);
@@ -716,7 +742,8 @@ export class LobbyManager {
       for (const player of lobby.game.players) {
         const cardIds =
           action.type === "schwimmen:next-round" ||
-          action.type === "romme:next-round"
+          action.type === "romme:next-round" ||
+          action.type === "skat:next-round"
             ? player.hand.map((card) => card.id)
             : player.hand
                 .filter(

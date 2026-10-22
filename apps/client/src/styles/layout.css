@@ -442,7 +442,16 @@ button.primary:hover:not(:disabled) {
   display: grid;
   gap: 0.7rem;
 }
+.game-catalog-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.55fr);
+  align-items: end;
+  gap: 0.7rem;
+}
 .game-search {
+  gap: 0.45rem;
+}
+.game-player-filter {
   gap: 0.45rem;
 }
 .game-search-field {
@@ -509,9 +518,21 @@ button.primary:hover:not(:disabled) {
 .game-catalog-copy {
   min-width: 0;
 }
+.game-catalog-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.55rem;
+}
 .game-catalog-copy h3 {
   margin: 0;
   font-size: 1.05rem;
+}
+.game-player-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .game-catalog-copy > p {
   margin: 0.35rem 0 0;
@@ -559,6 +580,9 @@ button.primary:hover:not(:disabled) {
   font-size: 0.82rem;
 }
 @media (max-width: 560px) {
+  .game-catalog-filters {
+    grid-template-columns: 1fr;
+  }
   .game-catalog .game-catalog-card {
     grid-template-columns: 1fr;
   }

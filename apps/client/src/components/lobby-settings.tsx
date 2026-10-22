@@ -7,6 +7,7 @@ import type {
   SpadesRules,
   OhHellRules,
   CheatRules,
+  SkatRules,
 } from "@collection52/shared";
 import {
   defaultMauMauRules,
@@ -14,6 +15,7 @@ import {
   defaultSpadesRules,
   defaultOhHellRules,
   defaultCheatRules,
+  defaultSkatRules,
   storageKeys,
 } from "../client-config";
 import { socket } from "../socket";
@@ -29,6 +31,7 @@ type LobbySettingsUpdate = {
   spadesRules?: SpadesRules;
   ohHellRules?: OhHellRules;
   cheatRules?: CheatRules;
+  skatRules?: SkatRules;
 };
 
 export function LobbySettings({
@@ -69,6 +72,10 @@ export function LobbySettings({
   const [cheatRules, setCheatRules] = useState<CheatRules>({
     ...defaultCheatRules,
     ...lobby.cheatRules,
+  });
+  const [skatRules, setSkatRules] = useState<SkatRules>({
+    ...defaultSkatRules,
+    ...lobby.skatRules,
   });
   const saveUpdate = (
     update: LobbySettingsUpdate,
@@ -150,7 +157,7 @@ export function LobbySettings({
     } else updateRommeRules(next);
   };
   const updateGameRules = <T,>(
-    key: "spadesRules" | "ohHellRules" | "cheatRules",
+    key: "spadesRules" | "ohHellRules" | "cheatRules" | "skatRules",
     next: T,
     previous: T,
     rollback: (value: T) => void,
@@ -249,8 +256,10 @@ export function LobbySettings({
                 rommeRules.variant === "canasta" &&
                 count !== 4) ||
               (lobby.gameId === "spades" && count !== 4) ||
+              (lobby.gameId === "skat" && (count < 3 || count > 4)) ||
               (lobby.gameId === "oh-hell" && (count < 3 || count > 7)) ||
-              (!["oh-hell", "cheat"].includes(lobby.gameId) && count > 6),
+              (!["oh-hell", "cheat", "skat"].includes(lobby.gameId) &&
+                count > 6),
           }))}
         />
       </label>
@@ -575,6 +584,52 @@ export function LobbySettings({
                 label: String(value),
               }))}
             />
+          </label>
+        </fieldset>
+      )}
+      {lobby.gameId === "skat" && (
+        <fieldset className="mau-mau-variant-settings">
+          <legend>{t("skatSettings")}</legend>
+          <label>
+            {t("skatSeriesLength")}
+            <ResponsiveSelect
+              label={t("skatSeriesLength")}
+              value={String(skatRules.roundsPerPlayer)}
+              onChange={(value) => {
+                const previous = skatRules;
+                const next = {
+                  ...previous,
+                  roundsPerPlayer: Number(
+                    value,
+                  ) as SkatRules["roundsPerPlayer"],
+                };
+                setSkatRules(next);
+                updateGameRules("skatRules", next, previous, setSkatRules);
+              }}
+              options={[3, 6, 9, 12].map((value) => ({
+                value: String(value),
+                label: t("skatRoundsPerPlayer", { count: value }),
+              }))}
+            />
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={skatRules.tournamentScoring}
+              onChange={(event) => {
+                const previous = skatRules;
+                const next = {
+                  ...previous,
+                  tournamentScoring: event.target.checked,
+                };
+                setSkatRules(next);
+                updateGameRules("skatRules", next, previous, setSkatRules);
+              }}
+            />
+            <span>
+              <strong>{t("skatTournamentScoring")}</strong>
+              <small>{t("skatTournamentScoringHint")}</small>
+            </span>
           </label>
         </fieldset>
       )}

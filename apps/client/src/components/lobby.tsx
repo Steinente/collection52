@@ -13,6 +13,7 @@ import type {
   SpadesGameView,
   OhHellGameView,
   CheatGameView,
+  SkatGameView,
 } from "../models";
 import { socket } from "../socket";
 import { useConfirmation, useConfirmationChoice } from "./confirmation-dialog";
@@ -24,6 +25,7 @@ import {
   SchwimmenRoundResultPanel,
   TrickBoard,
   CheatBoard,
+  SkatBoard,
 } from "./game-boards";
 
 function avatarColorStyle(color: string): CSSProperties {
@@ -93,11 +95,13 @@ export function LobbyView({
   const enoughPlayers =
     lobby.gameId === "spades"
       ? lobby.players.length === 4
-      : lobby.gameId === "oh-hell"
-        ? lobby.players.length >= 3
-        : lobby.gameId === "romme" && lobby.rommeRules?.variant === "canasta"
-          ? lobby.players.length === 4
-          : lobby.players.length >= 2;
+      : lobby.gameId === "skat"
+        ? lobby.players.length >= 3 && lobby.players.length <= 4
+        : lobby.gameId === "oh-hell"
+          ? lobby.players.length >= 3
+          : lobby.gameId === "romme" && lobby.rommeRules?.variant === "canasta"
+            ? lobby.players.length === 4
+            : lobby.players.length >= 2;
   const everyoneConnected = lobby.players.every((player) => player.connected);
   const canStart = enoughPlayers && everyoneConnected;
   const protocolList = useRef<HTMLOListElement>(null);
@@ -412,9 +416,11 @@ export function LobbyView({
                         (lobby.gameId === "romme" &&
                           lobby.rommeRules?.variant === "canasta")
                         ? "startNeedsFourPlayers"
-                        : lobby.gameId === "oh-hell"
+                        : lobby.gameId === "skat"
                           ? "startNeedsThreePlayers"
-                          : "startNeedsPlayers"
+                          : lobby.gameId === "oh-hell"
+                            ? "startNeedsThreePlayers"
+                            : "startNeedsPlayers"
                       : "startNeedsConnections",
                   )}
                 </p>
@@ -462,6 +468,14 @@ export function LobbyView({
           ) : lobby.gameId === "cheat" ? (
             <CheatBoard
               game={game as CheatGameView}
+              playerId={playerId}
+              selected={selected}
+              setSelected={setSelected}
+              sendAction={sendAction}
+            />
+          ) : lobby.gameId === "skat" ? (
+            <SkatBoard
+              game={game as SkatGameView}
               playerId={playerId}
               selected={selected}
               setSelected={setSelected}

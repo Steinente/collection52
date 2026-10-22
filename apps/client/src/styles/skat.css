@@ -1,0 +1,96 @@
+.skat-game-board {
+  display: grid;
+  gap: 1rem;
+}
+
+.skat-stack {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.skat-stack .card-back {
+  display: block;
+  border: 2px solid color-mix(in srgb, var(--accent) 62%, var(--border));
+  border-radius: var(--card-radius);
+  background: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--accent) 72%, #111) 0 5px,
+    color-mix(in srgb, var(--accent-2) 80%, #111) 5px 10px
+  );
+  box-shadow: var(--shadow-sm);
+}
+
+.skat-actions .action-row,
+.skat-declaration-controls,
+.skat-bid-response {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.skat-declaration-controls > label {
+  flex: 1 1 12rem;
+}
+
+.skat-bid-response p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.skat-round-result {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.skat-round-result h3,
+.skat-round-result p,
+.skat-round-result dl,
+.skat-round-result dd {
+  margin: 0;
+}
+
+.skat-round-result dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.55rem;
+}
+
+.skat-round-result dl > div {
+  padding: 0.55rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.skat-round-result dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+@media (min-width: 900px) {
+  .skat-game-board {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.58fr);
+  }
+
+  .skat-game-board > .status-card,
+  .skat-game-board > .hand,
+  .skat-game-board > .skat-open-hand {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .skat-actions .action-row,
+  .skat-actions .action-row > *,
+  .skat-declaration-controls,
+  .skat-declaration-controls > *,
+  .skat-actions .bid-controls,
+  .skat-actions .bid-controls > * {
+    width: 100%;
+  }
+}

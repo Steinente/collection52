@@ -12,6 +12,7 @@ import {
   loadSpadesRules,
   loadOhHellRules,
   loadCheatRules,
+  loadSkatRules,
   storageKeys,
   usernamePattern,
 } from "../client-config";
@@ -54,6 +55,7 @@ export function Home({
   >("idle");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [gameSearch, setGameSearch] = useState("");
+  const [gamePlayerFilter, setGamePlayerFilter] = useState("all");
   const [selectedGame, setSelectedGame] = useState<GameSelectionId>(() => {
     const stored = localStorage.getItem(storageKeys.selectedGame);
     return gameDefinitions.some((game) => game.id === stored)
@@ -140,17 +142,22 @@ export function Home({
       .replace(/[-‐‑‒–—]+/g, " ")
       .replace(/\s+/g, " ");
   const normalizedGameSearch = normalizeGameSearch(gameSearch);
+  const filteredPlayerCount =
+    gamePlayerFilter === "all" ? undefined : Number(gamePlayerFilter);
   const filteredGames = games.filter(
     (game) =>
-      !normalizedGameSearch ||
-      [
-        game.name,
-        game.description,
-        ...game.aliases,
-        ...game.searchAliases,
-      ].some((text) =>
-        normalizeGameSearch(text).includes(normalizedGameSearch),
-      ),
+      (filteredPlayerCount === undefined ||
+        (game.minPlayers <= filteredPlayerCount &&
+          game.maxPlayers >= filteredPlayerCount)) &&
+      (!normalizedGameSearch ||
+        [
+          game.name,
+          game.description,
+          ...game.aliases,
+          ...game.searchAliases,
+        ].some((text) =>
+          normalizeGameSearch(text).includes(normalizedGameSearch),
+        )),
   );
   const selectedGameDefinition =
     gameDefinitions.find((game) => game.id === selectedGame) ??
@@ -394,9 +401,11 @@ export function Home({
                       ? 2
                       : gameId === "spades"
                         ? 4
-                        : gameId === "oh-hell" || gameId === "cheat"
-                          ? 6
-                          : 4,
+                        : gameId === "skat"
+                          ? 4
+                          : gameId === "oh-hell" || gameId === "cheat"
+                            ? 6
+                            : 4,
                   deckSize:
                     gameId === "durak"
                       ? 36
@@ -424,6 +433,7 @@ export function Home({
                   ...(gameId === "cheat"
                     ? { cheatRules: loadCheatRules() }
                     : {}),
+                  ...(gameId === "skat" ? { skatRules: loadSkatRules() } : {}),
                   ...(createPasswordEnabled
                     ? { password: createPassword }
                     : {}),
@@ -565,19 +575,38 @@ export function Home({
       {gamesOpen && (
         <Dialog title={t("allGames")} close={() => setGamesOpen(false)}>
           <div className="game-catalog">
-            <label className="game-search">
-              {t("searchGames")}
-              <span className="game-search-field">
-                <span aria-hidden="true">⌕</span>
-                <input
-                  type="search"
-                  value={gameSearch}
-                  onChange={(event) => setGameSearch(event.target.value)}
-                  placeholder={t("searchGamesPlaceholder")}
-                  autoFocus
+            <div className="game-catalog-filters">
+              <label className="game-search">
+                {t("searchGames")}
+                <span className="game-search-field">
+                  <span aria-hidden="true">⌕</span>
+                  <input
+                    type="search"
+                    value={gameSearch}
+                    onChange={(event) => setGameSearch(event.target.value)}
+                    placeholder={t("searchGamesPlaceholder")}
+                    autoFocus
+                  />
+                </span>
+              </label>
+              <label className="game-player-filter">
+                {t("filterByPlayerCount")}
+                <ResponsiveSelect
+                  label={t("filterByPlayerCount")}
+                  value={gamePlayerFilter}
+                  onChange={setGamePlayerFilter}
+                  options={[
+                    { value: "all", label: t("allPlayerCounts") },
+                    ...Array.from({ length: 9 }, (_, index) => index + 2).map(
+                      (count) => ({
+                        value: String(count),
+                        label: t("gamePlayerCount", { count }),
+                      }),
+                    ),
+                  ]}
                 />
-              </span>
-            </label>
+              </label>
+            </div>
             <p className="game-result-count" role="status">
               {t("gameSearchResults", { count: filteredGames.length })}
             </p>
@@ -588,7 +617,19 @@ export function Home({
                   key={game.id}
                 >
                   <div className="game-catalog-copy">
-                    <h3>{game.name}</h3>
+                    <div className="game-catalog-heading">
+                      <h3>{game.name}</h3>
+                      <span className="game-player-count">
+                        {game.minPlayers === game.maxPlayers
+                          ? t("gamePlayerCount", {
+                              count: game.minPlayers,
+                            })
+                          : t("gamePlayerRange", {
+                              min: game.minPlayers,
+                              max: game.maxPlayers,
+                            })}
+                      </span>
+                    </div>
                     {game.aliases.length > 0 && (
                       <div className="game-aliases">
                         <span>{t("gameAliases")}</span>

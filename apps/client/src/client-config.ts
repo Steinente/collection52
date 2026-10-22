@@ -4,12 +4,14 @@ import {
   defaultSpadesRules,
   defaultOhHellRules,
   defaultCheatRules,
+  defaultSkatRules,
   type GameId,
   type MauMauRules,
   type RommeRules,
   type SpadesRules,
   type OhHellRules,
   type CheatRules,
+  type SkatRules,
   type Suit,
 } from "@collection52/shared";
 import { defaultHandSortSettings, type HandSortSettings } from "./hand-sort";
@@ -38,6 +40,7 @@ export {
   defaultSpadesRules,
   defaultOhHellRules,
   defaultCheatRules,
+  defaultSkatRules,
 };
 
 export const gameDefinitions = [
@@ -47,6 +50,8 @@ export const gameDefinitions = [
     nameKey: "durak",
     descriptionKey: "durakDescription",
     aliasesKey: "durakAliases",
+    minPlayers: 2,
+    maxPlayers: 6,
   },
   {
     id: "schwimmen",
@@ -55,6 +60,8 @@ export const gameDefinitions = [
     descriptionKey: "knackDescription",
     aliasesKey: "knackAliases",
     searchAliasesKey: "knackSearchAliases",
+    minPlayers: 2,
+    maxPlayers: 6,
   },
   {
     id: "mau-mau",
@@ -62,6 +69,8 @@ export const gameDefinitions = [
     nameKey: "mau-mau",
     descriptionKey: "mauMauDescription",
     aliasesKey: "mauMauAliases",
+    minPlayers: 2,
+    maxPlayers: 6,
   },
   {
     id: "romme",
@@ -70,6 +79,8 @@ export const gameDefinitions = [
     nameKey: "rommeVariantClassic",
     descriptionKey: "rommeDescription",
     aliasesKey: "rommeAliases",
+    minPlayers: 2,
+    maxPlayers: 6,
   },
   {
     id: "gin-romme",
@@ -79,6 +90,8 @@ export const gameDefinitions = [
     descriptionKey: "ginRommeDescription",
     aliasesKey: "ginRommeAliases",
     searchAliasesKey: "ginRommeSearchAliases",
+    minPlayers: 2,
+    maxPlayers: 2,
   },
   {
     id: "canasta",
@@ -87,6 +100,8 @@ export const gameDefinitions = [
     nameKey: "rommeVariantCanasta",
     descriptionKey: "canastaDescription",
     aliasesKey: "canastaAliases",
+    minPlayers: 4,
+    maxPlayers: 4,
   },
   {
     id: "spades",
@@ -94,6 +109,8 @@ export const gameDefinitions = [
     nameKey: "spades",
     descriptionKey: "spadesDescription",
     aliasesKey: "spadesAliases",
+    minPlayers: 4,
+    maxPlayers: 4,
   },
   {
     id: "oh-hell",
@@ -101,6 +118,8 @@ export const gameDefinitions = [
     nameKey: "oh-hell",
     descriptionKey: "ohHellDescription",
     aliasesKey: "ohHellAliases",
+    minPlayers: 3,
+    maxPlayers: 7,
   },
   {
     id: "cheat",
@@ -108,6 +127,17 @@ export const gameDefinitions = [
     nameKey: "cheat",
     descriptionKey: "cheatDescription",
     aliasesKey: "cheatAliases",
+    minPlayers: 2,
+    maxPlayers: 10,
+  },
+  {
+    id: "skat",
+    gameId: "skat",
+    nameKey: "skat",
+    descriptionKey: "skatDescription",
+    aliasesKey: "skatAliases",
+    minPlayers: 3,
+    maxPlayers: 4,
   },
 ] as const;
 
@@ -135,6 +165,7 @@ export const storageKeys = {
   spadesRules: "c52:spades-rules",
   ohHellRules: "c52:oh-hell-rules",
   cheatRules: "c52:cheat-rules",
+  skatRules: "c52:skat-rules",
   retainedLobby: "c52:retained-lobby",
   handSort: "c52:hand-sort",
 } as const;
@@ -299,6 +330,22 @@ export function loadCheatRules(): CheatRules {
     };
   } catch {
     return { ...defaultCheatRules };
+  }
+}
+
+export function loadSkatRules(): SkatRules {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(storageKeys.skatRules) ?? "{}",
+    ) as Partial<SkatRules>;
+    return {
+      roundsPerPlayer: [3, 6, 9, 12].includes(stored.roundsPerPlayer ?? 0)
+        ? stored.roundsPerPlayer!
+        : defaultSkatRules.roundsPerPlayer,
+      tournamentScoring: stored.tournamentScoring === true,
+    };
+  } catch {
+    return { ...defaultSkatRules };
   }
 }
 

@@ -6,4 +6,5 @@ export * from "./romme.js";
 export * from "./spades.js";
 export * from "./oh-hell.js";
 export * from "./cheat.js";
+export * from "./skat.js";
 export * from "./protocol.js";

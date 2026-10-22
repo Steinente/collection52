@@ -13,6 +13,7 @@ import type {
   SpadesGameView,
   OhHellGameView,
   CheatGameView,
+  SkatGameView,
 } from "../models";
 
 type GameProtocolOptions = {
@@ -411,16 +412,18 @@ export function useGameProtocol({
       }
       return;
     }
-    if (["spades", "oh-hell", "cheat"].includes(lobby.gameId)) {
+    if (["spades", "oh-hell", "cheat", "skat"].includes(lobby.gameId)) {
       const socialGame = game as
         | SpadesGameView
         | OhHellGameView
-        | CheatGameView;
+        | CheatGameView
+        | SkatGameView;
       const socialMe = socialGame.players.find(
         (player) => player.id === playerId,
       );
       if (narratedGameId.current !== socialGame.id) {
-        if (!socialMe?.hand.length) return;
+        if (!socialMe || (!socialMe.hand.length && lobby.gameId !== "skat"))
+          return;
         narratedGameId.current = socialGame.id;
         setProtocolEntries([]);
         setProtocolOpen(true);
@@ -470,6 +473,30 @@ export function useGameProtocol({
             text = t("cheatProtocolChallenge", { name });
           else if (event.type === "game.cheat.accept")
             text = t("cheatProtocolAccept", { name });
+          else if (event.type === "game.skat.bid")
+            text = t("skatProtocolBid", { name, count: event.data.bid });
+          else if (event.type === "game.skat.hold")
+            text = t("skatProtocolHold", { name });
+          else if (event.type === "game.skat.pass")
+            text = t("skatProtocolPass", { name });
+          else if (event.type === "game.skat.pick-up")
+            text = t("skatProtocolPickUp", { name });
+          else if (event.type === "game.skat.choose-hand")
+            text = t("skatProtocolHand", { name });
+          else if (event.type === "game.skat.discard")
+            text = t("skatProtocolDiscard", { name });
+          else if (event.type === "game.skat.declare")
+            text = t("skatProtocolDeclare", {
+              name,
+              contract: t(`skatContract_${event.data.contract}`),
+            });
+          else if (event.type === "game.skat.play")
+            text = t("trickProtocolPlay", {
+              name,
+              card: cardName(event.data.cardId),
+            });
+          else if (event.type === "game.skat.next-round")
+            text = t("protocolNextRound");
           if (text)
             additions.push({
               id: `event-${event.id}`,

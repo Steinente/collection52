@@ -206,19 +206,37 @@ export function RulesContent({
         )}
       </div>
     );
-  if (gameId === "spades" || gameId === "oh-hell" || gameId === "cheat") {
+  if (
+    gameId === "spades" ||
+    gameId === "oh-hell" ||
+    gameId === "cheat" ||
+    gameId === "skat"
+  ) {
     const prefix =
       gameId === "spades"
         ? "spadesRules"
         : gameId === "oh-hell"
           ? "ohHellRules"
-          : "cheatRules";
+          : gameId === "cheat"
+            ? "cheatRules"
+            : "skatRules";
     const steps =
       gameId === "spades"
         ? ["setup", "bidding", "nil", "play", "scoring", "bags"]
         : gameId === "oh-hell"
           ? ["setup", "schedule", "bidding", "dealer", "play", "scoring"]
-          : ["setup", "sequence", "play", "challenge", "pickup", "finalPlay"];
+          : gameId === "cheat"
+            ? ["setup", "sequence", "play", "challenge", "pickup", "finalPlay"]
+            : [
+                "setup",
+                "bidding",
+                "skat",
+                "contracts",
+                "announcements",
+                "play",
+                "scoring",
+                "series",
+              ];
     return (
       <div className="rules-content">
         <p>{t(`${prefix}Intro`)}</p>

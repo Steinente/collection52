@@ -687,4 +687,39 @@ describe("LobbyManager", () => {
     manager.close(cheat.lobby, "test_finished");
     manager.stop();
   });
+  it("creates a three- or four-player Skat lobby with persisted rules", async () => {
+    const manager = new LobbyManager(hooks());
+    const skat = await manager.create(
+      "Anna",
+      {
+        gameId: "skat",
+        maxPlayers: 9,
+        deckSize: 52,
+        visibility: "public",
+        skatRules: { roundsPerPlayer: 6, tournamentScoring: true },
+      },
+      "skat-1",
+    );
+    expect(skat.lobby.maxPlayers).toBe(4);
+    expect(skat.lobby.deckSize).toBe(32);
+    expect(skat.lobby.skatRules).toEqual({
+      roundsPerPlayer: 6,
+      tournamentScoring: true,
+    });
+    await manager.join(skat.lobby, "Ben", undefined, "skat-2");
+    expect(() => manager.start(skat.lobby, skat.player.id)).toThrow(
+      "skat_requires_three_or_four_players",
+    );
+    await manager.join(skat.lobby, "Cara", undefined, "skat-3");
+    manager.start(skat.lobby, skat.player.id);
+    expect(skat.lobby.game).toMatchObject({
+      phase: "bidding",
+      totalDeals: 18,
+      rules: { roundsPerPlayer: 6, tournamentScoring: true },
+    });
+    const view = manager.view(skat.lobby, skat.player.id);
+    expect(view.skatRules).toEqual(skat.lobby.skatRules);
+    manager.close(skat.lobby, "test_finished");
+    manager.stop();
+  });
 });
