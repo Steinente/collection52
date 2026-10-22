@@ -4,10 +4,16 @@ import {
   applyKnackAction,
   applyMauMauAction,
   applyRommeAction,
+  applySpadesAction,
+  applyOhHellAction,
+  applyCheatAction,
   createDurakGame,
   createKnackGame,
   createMauMauGame,
   createRommeGame,
+  createSpadesGame,
+  createOhHellGame,
+  createCheatGame,
   withdrawDurakPlayer,
   withdrawKnackPlayer,
   withdrawRommePlayer,
@@ -23,10 +29,26 @@ import {
   type RommeAction,
   type RommeRules,
   type RommeState,
+  type SpadesAction,
+  type SpadesRules,
+  type SpadesState,
+  type OhHellAction,
+  type OhHellRules,
+  type OhHellState,
+  type CheatAction,
+  type CheatRules,
+  type CheatState,
   type StructuredEvent,
 } from "@collection52/shared";
 
-export type GameState = DurakState | KnackState | MauMauState | RommeState;
+export type GameState =
+  | DurakState
+  | KnackState
+  | MauMauState
+  | RommeState
+  | SpadesState
+  | OhHellState
+  | CheatState;
 export type GameParticipant = { id: string; name: string; connected?: boolean };
 
 type CreateGameOptions = {
@@ -36,6 +58,9 @@ type CreateGameOptions = {
   deckSize: 32 | 36 | 52;
   mauMauRules: MauMauRules;
   rommeRules: RommeRules;
+  spadesRules: SpadesRules;
+  ohHellRules: OhHellRules;
+  cheatRules: CheatRules;
 };
 
 export function createGame(options: CreateGameOptions): GameState {
@@ -47,6 +72,12 @@ export function createGame(options: CreateGameOptions): GameState {
       return createMauMauGame(id, players, randomInt, options.mauMauRules);
     case "romme":
       return createRommeGame(id, players, randomInt, options.rommeRules);
+    case "spades":
+      return createSpadesGame(id, players, randomInt, options.spadesRules);
+    case "oh-hell":
+      return createOhHellGame(id, players, randomInt, options.ohHellRules);
+    case "cheat":
+      return createCheatGame(id, players, randomInt, options.cheatRules);
     case "durak":
       return createDurakGame(
         id,
@@ -89,6 +120,30 @@ export function applyGameAction(
         playerId,
         action as RommeAction,
         randomInt,
+      );
+    case "spades":
+      if (!action.type.startsWith("spades:")) throw new Error("invalid_action");
+      return applySpadesAction(
+        game as SpadesState,
+        playerId,
+        action as SpadesAction,
+        randomInt,
+      );
+    case "oh-hell":
+      if (!action.type.startsWith("oh-hell:"))
+        throw new Error("invalid_action");
+      return applyOhHellAction(
+        game as OhHellState,
+        playerId,
+        action as OhHellAction,
+        randomInt,
+      );
+    case "cheat":
+      if (!action.type.startsWith("cheat:")) throw new Error("invalid_action");
+      return applyCheatAction(
+        game as CheatState,
+        playerId,
+        action as CheatAction,
       );
     case "durak":
       if (action.type.includes(":")) throw new Error("invalid_action");
@@ -143,6 +198,14 @@ export function gameActionEventData(
     case "romme:discard":
     case "romme:knock":
       return { cardId: action.cardId };
+    case "spades:bid":
+    case "oh-hell:bid":
+      return { bid: action.bid };
+    case "spades:play":
+    case "oh-hell:play":
+      return { cardId: action.cardId };
+    case "cheat:play":
+      return { count: action.cardIds.length };
     default:
       return {};
   }
@@ -157,6 +220,9 @@ export function recordsPrivateDraws(
     action.type === "mau-mau:draw" ||
     action.type === "romme:draw" ||
     action.type === "romme:next-round" ||
+    action.type === "spades:next-round" ||
+    action.type === "oh-hell:next-round" ||
+    action.type === "cheat:challenge" ||
     action.type === "schwimmen:next-round"
   );
 }
@@ -174,6 +240,10 @@ export function withdrawPlayer(
     case "romme":
       return withdrawRommePlayer(game as RommeState, playerId);
     case "mau-mau":
+      return undefined;
+    case "spades":
+    case "oh-hell":
+    case "cheat":
       return undefined;
   }
 }

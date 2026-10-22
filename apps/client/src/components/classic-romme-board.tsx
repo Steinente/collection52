@@ -186,6 +186,7 @@ export function ClassicRommeBoard({
                       <span
                         className="romme-table-card"
                         key={card.id}
+                        role="img"
                         aria-label={cardText(card)}
                       >
                         <CardFace card={card} />
@@ -239,6 +240,7 @@ export function ClassicRommeBoard({
           {top && (
             <span
               className={`romme-table-card ${game.discardCount > 1 ? "stacked" : ""}`}
+              role="img"
               aria-label={cardText(top)}
             >
               <CardFace card={top} />

@@ -207,6 +207,7 @@ export function DurakBoard({
                   {pair.defense && (
                     <div
                       className="playing-card defense"
+                      role="img"
                       aria-label={cardText(pair.defense)}
                     >
                       <CardFace card={pair.defense} />

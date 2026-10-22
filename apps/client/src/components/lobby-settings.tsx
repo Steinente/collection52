@@ -4,10 +4,16 @@ import type {
   MauMauRules,
   PublicLobby,
   RommeRules,
+  SpadesRules,
+  OhHellRules,
+  CheatRules,
 } from "@collection52/shared";
 import {
   defaultMauMauRules,
   defaultRommeRules,
+  defaultSpadesRules,
+  defaultOhHellRules,
+  defaultCheatRules,
   storageKeys,
 } from "../client-config";
 import { socket } from "../socket";
@@ -20,6 +26,9 @@ type LobbySettingsUpdate = {
   password?: string;
   mauMauRules?: MauMauRules;
   rommeRules?: RommeRules;
+  spadesRules?: SpadesRules;
+  ohHellRules?: OhHellRules;
+  cheatRules?: CheatRules;
 };
 
 export function LobbySettings({
@@ -48,6 +57,18 @@ export function LobbySettings({
   const [rommeRules, setRommeRules] = useState<RommeRules>({
     ...defaultRommeRules,
     ...lobby.rommeRules,
+  });
+  const [spadesRules, setSpadesRules] = useState<SpadesRules>({
+    ...defaultSpadesRules,
+    ...lobby.spadesRules,
+  });
+  const [ohHellRules, setOhHellRules] = useState<OhHellRules>({
+    ...defaultOhHellRules,
+    ...lobby.ohHellRules,
+  });
+  const [cheatRules, setCheatRules] = useState<CheatRules>({
+    ...defaultCheatRules,
+    ...lobby.cheatRules,
   });
   const saveUpdate = (
     update: LobbySettingsUpdate,
@@ -90,7 +111,11 @@ export function LobbySettings({
         localStorage.setItem(storageKeys.rommeRules, JSON.stringify(next));
         localStorage.setItem(
           storageKeys.selectedGame,
-          next.variant === "gin" ? "gin-romme" : "romme",
+          next.variant === "gin"
+            ? "gin-romme"
+            : next.variant === "canasta"
+              ? "canasta"
+              : "romme",
         );
       },
       () => setRommeRules(previous),
@@ -110,13 +135,31 @@ export function LobbySettings({
       setError("gin_requires_two_players");
       return;
     }
+    if (variant === "canasta" && lobby.playerCount > 4) {
+      setError("canasta_requires_four_players");
+      return;
+    }
     const next = { ...rommeRules, variant };
     setSelectedRommeVariant(variant);
     if (variant === "gin") {
       setMaxPlayers(2);
       updateRommeRules(next, { maxPlayers: 2 });
+    } else if (variant === "canasta") {
+      setMaxPlayers(4);
+      updateRommeRules(next, { maxPlayers: 4 });
     } else updateRommeRules(next);
   };
+  const updateGameRules = <T,>(
+    key: "spadesRules" | "ohHellRules" | "cheatRules",
+    next: T,
+    previous: T,
+    rollback: (value: T) => void,
+  ) =>
+    saveUpdate(
+      { [key]: next },
+      () => localStorage.setItem(storageKeys[key], JSON.stringify(next)),
+      () => rollback(previous),
+    );
   return (
     <form
       className="panel lobby-settings"
@@ -163,8 +206,14 @@ export function LobbySettings({
               lobby.gameId === "romme"
                 ? rommeRules.variant === "gin"
                   ? "cards52"
-                  : "rommeCards110"
-                : "cards32",
+                  : rommeRules.variant === "canasta"
+                    ? "canastaCards108"
+                    : "rommeCards110"
+                : ["spades", "oh-hell", "cheat"].includes(lobby.gameId)
+                  ? cheatRules.deckCount === 2 && lobby.gameId === "cheat"
+                    ? "cards104"
+                    : "cards52"
+                  : "cards32",
             )}
           </strong>
         </div>
@@ -174,7 +223,12 @@ export function LobbySettings({
         <ResponsiveSelect
           label={t("maxPlayers")}
           value={String(maxPlayers)}
-          disabled={lobby.gameId === "romme" && rommeRules.variant === "gin"}
+          disabled={
+            lobby.gameId === "spades" ||
+            (lobby.gameId === "romme" &&
+              (rommeRules.variant === "gin" ||
+                rommeRules.variant === "canasta"))
+          }
           onChange={(value) => {
             const previous = maxPlayers;
             const next = Number(value);
@@ -183,14 +237,20 @@ export function LobbySettings({
               setMaxPlayers(previous),
             );
           }}
-          options={[2, 3, 4, 5, 6].map((count) => ({
+          options={[2, 3, 4, 5, 6, 7, 8, 9, 10].map((count) => ({
             value: String(count),
             label: String(count),
             disabled:
               count < lobby.playerCount ||
               (lobby.gameId === "romme" &&
                 rommeRules.variant === "gin" &&
-                count !== 2),
+                count !== 2) ||
+              (lobby.gameId === "romme" &&
+                rommeRules.variant === "canasta" &&
+                count !== 4) ||
+              (lobby.gameId === "spades" && count !== 4) ||
+              (lobby.gameId === "oh-hell" && (count < 3 || count > 7)) ||
+              (!["oh-hell", "cheat"].includes(lobby.gameId) && count > 6),
           }))}
         />
       </label>
@@ -254,10 +314,14 @@ export function LobbySettings({
               options={[
                 { value: "classic", label: t("rommeVariantClassic") },
                 { value: "gin", label: t("rommeVariantGin") },
+                { value: "canasta", label: t("rommeVariantCanasta") },
               ]}
             />
             {rommeRules.variant === "gin" && (
               <small>{t("ginVariantHint")}</small>
+            )}
+            {rommeRules.variant === "canasta" && (
+              <small>{t("canastaVariantHint")}</small>
             )}
           </label>
           {rommeRules.variant === "classic" ? (
@@ -296,7 +360,7 @@ export function LobbySettings({
                 </span>
               </label>
             </>
-          ) : (
+          ) : rommeRules.variant === "gin" ? (
             <label>
               {t("ginTargetScore")}
               <ResponsiveSelect
@@ -314,7 +378,204 @@ export function LobbySettings({
                 }))}
               />
             </label>
+          ) : (
+            <>
+              <label>
+                {t("canastaTargetScore")}
+                <ResponsiveSelect
+                  label={t("canastaTargetScore")}
+                  value={String(rommeRules.canastaTargetScore)}
+                  onChange={(value) => {
+                    updateRommeRules({
+                      ...rommeRules,
+                      canastaTargetScore: Number(value),
+                    });
+                  }}
+                  options={[3000, 5000, 7500, 10000].map((count) => ({
+                    value: String(count),
+                    label: t("canastaTargetOption", { count }),
+                  }))}
+                />
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={rommeRules.canastaRequireCanastaToGoOut}
+                  onChange={(event) => {
+                    updateRommeRules({
+                      ...rommeRules,
+                      canastaRequireCanastaToGoOut: event.target.checked,
+                    });
+                  }}
+                />
+                <span>
+                  <strong>{t("canastaRequireCanastaToGoOut")}</strong>
+                  <small>{t("canastaRequireCanastaToGoOutHint")}</small>
+                </span>
+              </label>
+            </>
           )}
+        </fieldset>
+      )}
+      {lobby.gameId === "spades" && (
+        <fieldset className="mau-mau-variant-settings">
+          <legend>{t("spadesSettings")}</legend>
+          <label>
+            {t("targetScore")}
+            <ResponsiveSelect
+              label={t("targetScore")}
+              value={String(spadesRules.targetScore)}
+              onChange={(value) => {
+                const previous = spadesRules;
+                const next = { ...previous, targetScore: Number(value) };
+                setSpadesRules(next);
+                updateGameRules("spadesRules", next, previous, setSpadesRules);
+              }}
+              options={[250, 500, 750, 1000].map((value) => ({
+                value: String(value),
+                label: t("pointsOption", { count: value }),
+              }))}
+            />
+          </label>
+          <label>
+            {t("nilBonus")}
+            <ResponsiveSelect
+              label={t("nilBonus")}
+              value={String(spadesRules.nilBonus)}
+              onChange={(value) => {
+                const previous = spadesRules;
+                const next = { ...previous, nilBonus: Number(value) };
+                setSpadesRules(next);
+                updateGameRules("spadesRules", next, previous, setSpadesRules);
+              }}
+              options={[50, 100, 200].map((value) => ({
+                value: String(value),
+                label: t("pointsOption", { count: value }),
+              }))}
+            />
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={spadesRules.bagPenalty}
+              onChange={(event) => {
+                const previous = spadesRules;
+                const next = { ...previous, bagPenalty: event.target.checked };
+                setSpadesRules(next);
+                updateGameRules("spadesRules", next, previous, setSpadesRules);
+              }}
+            />
+            <span>
+              <strong>{t("bagPenalty")}</strong>
+              <small>{t("bagPenaltyHint")}</small>
+            </span>
+          </label>
+        </fieldset>
+      )}
+      {lobby.gameId === "oh-hell" && (
+        <fieldset className="mau-mau-variant-settings">
+          <legend>{t("ohHellSettings")}</legend>
+          <label>
+            {t("exactBidBonus")}
+            <ResponsiveSelect
+              label={t("exactBidBonus")}
+              value={String(ohHellRules.exactBonus)}
+              onChange={(value) => {
+                const previous = ohHellRules;
+                const next = { ...previous, exactBonus: Number(value) };
+                setOhHellRules(next);
+                updateGameRules("ohHellRules", next, previous, setOhHellRules);
+              }}
+              options={[5, 10, 20].map((value) => ({
+                value: String(value),
+                label: t("pointsOption", { count: value }),
+              }))}
+            />
+          </label>
+          {(["scoreMissedTricks", "forbidExactBidTotal"] as const).map(
+            (key) => (
+              <label className="check" key={key}>
+                <input
+                  type="checkbox"
+                  checked={ohHellRules[key]}
+                  onChange={(event) => {
+                    const previous = ohHellRules;
+                    const next = { ...previous, [key]: event.target.checked };
+                    setOhHellRules(next);
+                    updateGameRules(
+                      "ohHellRules",
+                      next,
+                      previous,
+                      setOhHellRules,
+                    );
+                  }}
+                />
+                <span>
+                  <strong>{t(`ohHell_${key}`)}</strong>
+                  <small>{t(`ohHell_${key}Hint`)}</small>
+                </span>
+              </label>
+            ),
+          )}
+        </fieldset>
+      )}
+      {lobby.gameId === "cheat" && (
+        <fieldset className="mau-mau-variant-settings">
+          <legend>{t("cheatSettings")}</legend>
+          <label>
+            {t("numberOfDecks")}
+            <ResponsiveSelect
+              label={t("numberOfDecks")}
+              value={String(cheatRules.deckCount)}
+              onChange={(value) => {
+                const previous = cheatRules;
+                const next = { ...previous, deckCount: Number(value) as 1 | 2 };
+                setCheatRules(next);
+                updateGameRules("cheatRules", next, previous, setCheatRules);
+              }}
+              options={[1, 2].map((value) => ({
+                value: String(value),
+                label: t("deckCountOption", { count: value }),
+              }))}
+            />
+          </label>
+          <label>
+            {t("rankDirection")}
+            <ResponsiveSelect
+              label={t("rankDirection")}
+              value={cheatRules.direction}
+              onChange={(value) => {
+                const previous = cheatRules;
+                const next = {
+                  ...previous,
+                  direction: value as CheatRules["direction"],
+                };
+                setCheatRules(next);
+                updateGameRules("cheatRules", next, previous, setCheatRules);
+              }}
+              options={["ascending", "descending"].map((value) => ({
+                value,
+                label: t(`rankDirection_${value}`),
+              }))}
+            />
+          </label>
+          <label>
+            {t("maxCardsPerTurn")}
+            <ResponsiveSelect
+              label={t("maxCardsPerTurn")}
+              value={String(cheatRules.maxCardsPerTurn)}
+              onChange={(value) => {
+                const previous = cheatRules;
+                const next = { ...previous, maxCardsPerTurn: Number(value) };
+                setCheatRules(next);
+                updateGameRules("cheatRules", next, previous, setCheatRules);
+              }}
+              options={[1, 4, 8].map((value) => ({
+                value: String(value),
+                label: String(value),
+              }))}
+            />
+          </label>
         </fieldset>
       )}
       <div className={`password-setting${passwordEnabled ? " enabled" : ""}`}>

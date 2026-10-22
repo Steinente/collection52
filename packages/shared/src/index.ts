@@ -3,4 +3,7 @@ export * from "./durak.js";
 export * from "./knack.js";
 export * from "./mau-mau.js";
 export * from "./romme.js";
+export * from "./spades.js";
+export * from "./oh-hell.js";
+export * from "./cheat.js";
 export * from "./protocol.js";

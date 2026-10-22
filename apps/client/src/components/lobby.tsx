@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { PublicLobby, StructuredEvent } from "@collection52/shared";
+import type { RommeRules } from "@collection52/shared";
 import { eventTranslationKey, technicalEventTypes } from "../client-config";
 import type {
   AnyGameView,
@@ -9,6 +10,9 @@ import type {
   ProtocolEntry,
   RommeGameView,
   SchwimmenGameView,
+  SpadesGameView,
+  OhHellGameView,
+  CheatGameView,
 } from "../models";
 import { socket } from "../socket";
 import { useConfirmation, useConfirmationChoice } from "./confirmation-dialog";
@@ -18,6 +22,8 @@ import {
   RommeBoard,
   SchwimmenBoard,
   SchwimmenRoundResultPanel,
+  TrickBoard,
+  CheatBoard,
 } from "./game-boards";
 
 function avatarColorStyle(color: string): CSSProperties {
@@ -60,7 +66,7 @@ export function LobbyView({
   protocolOpen: boolean;
   setProtocolOpen: (v: boolean) => void;
   setError: (v: string) => void;
-  setSelectedRommeVariant: (variant: "classic" | "gin") => void;
+  setSelectedRommeVariant: (variant: RommeRules["variant"]) => void;
   command: (
     event:
       | "game:start"
@@ -84,7 +90,14 @@ export function LobbyView({
   const copyFeedbackTimer = useRef<number | undefined>(undefined);
   const isHost = lobby.hostId === playerId;
   const me = game?.players.find((p) => p.id === playerId);
-  const enoughPlayers = lobby.players.length >= 2;
+  const enoughPlayers =
+    lobby.gameId === "spades"
+      ? lobby.players.length === 4
+      : lobby.gameId === "oh-hell"
+        ? lobby.players.length >= 3
+        : lobby.gameId === "romme" && lobby.rommeRules?.variant === "canasta"
+          ? lobby.players.length === 4
+          : lobby.players.length >= 2;
   const everyoneConnected = lobby.players.every((player) => player.connected);
   const canStart = enoughPlayers && everyoneConnected;
   const protocolList = useRef<HTMLOListElement>(null);
@@ -143,9 +156,25 @@ export function LobbyView({
       ? t(
           lobby.rommeRules?.variant === "gin"
             ? "rommeVariantGin"
-            : "rommeVariantClassic",
+            : lobby.rommeRules?.variant === "canasta"
+              ? "rommeVariantCanasta"
+              : "rommeVariantClassic",
         )
       : t(lobby.gameId);
+  const deckLabel =
+    lobby.gameId === "romme"
+      ? lobby.rommeRules?.variant === "gin"
+        ? "cards52"
+        : lobby.rommeRules?.variant === "canasta"
+          ? "canastaCards108"
+          : "rommeCards110"
+      : lobby.gameId === "cheat" && lobby.cheatRules?.deckCount === 2
+        ? "cards104"
+        : lobby.deckSize === 32
+          ? "cards32"
+          : lobby.deckSize === 36
+            ? "cards36"
+            : "cards52";
 
   return (
     <>
@@ -161,19 +190,7 @@ export function LobbyView({
               <span className="game-identity-label">{t("currentGame")}</span>
               <h1 className="game-context-name">{displayedGameName}</h1>
             </div>
-            <span>
-              {t(
-                lobby.gameId === "romme"
-                  ? lobby.rommeRules?.variant === "gin"
-                    ? "cards52"
-                    : "rommeCards110"
-                  : lobby.deckSize === 32
-                    ? "cards32"
-                    : lobby.deckSize === 36
-                      ? "cards36"
-                      : "cards52",
-              )}
-            </span>
+            <span>{t(deckLabel)}</span>
             <span className="game-context-code">
               {t("lobby", { code: lobby.code })}
             </span>
@@ -208,19 +225,7 @@ export function LobbyView({
                 <span className="game-identity-label">{t("currentGame")}</span>
                 <h1 className="lobby-context-game">{displayedGameName}</h1>
               </div>
-              <span>
-                {t(
-                  lobby.gameId === "romme"
-                    ? lobby.rommeRules?.variant === "gin"
-                      ? "cards52"
-                      : "rommeCards110"
-                    : lobby.deckSize === 32
-                      ? "cards32"
-                      : lobby.deckSize === 36
-                        ? "cards36"
-                        : "cards52",
-                )}
-              </span>
+              <span>{t(deckLabel)}</span>
               <span className="game-context-code">
                 {t("lobby", { code: lobby.code })}
               </span>
@@ -403,7 +408,13 @@ export function LobbyView({
                 >
                   {t(
                     !enoughPlayers
-                      ? "startNeedsPlayers"
+                      ? lobby.gameId === "spades" ||
+                        (lobby.gameId === "romme" &&
+                          lobby.rommeRules?.variant === "canasta")
+                        ? "startNeedsFourPlayers"
+                        : lobby.gameId === "oh-hell"
+                          ? "startNeedsThreePlayers"
+                          : "startNeedsPlayers"
                       : "startNeedsConnections",
                   )}
                 </p>
@@ -434,6 +445,23 @@ export function LobbyView({
           ) : lobby.gameId === "romme" ? (
             <RommeBoard
               game={game as RommeGameView}
+              playerId={playerId}
+              selected={selected}
+              setSelected={setSelected}
+              sendAction={sendAction}
+            />
+          ) : lobby.gameId === "spades" || lobby.gameId === "oh-hell" ? (
+            <TrickBoard
+              kind={lobby.gameId}
+              game={game as SpadesGameView | OhHellGameView}
+              playerId={playerId}
+              selected={selected}
+              setSelected={setSelected}
+              sendAction={sendAction}
+            />
+          ) : lobby.gameId === "cheat" ? (
+            <CheatBoard
+              game={game as CheatGameView}
               playerId={playerId}
               selected={selected}
               setSelected={setSelected}

@@ -2,18 +2,22 @@ import { ranks52, suits, type Card, type Rank, shuffle } from "./cards.js";
 import { RuleError } from "./durak.js";
 
 export type RommeCard = Card | { id: string; suit: "joker"; rank: "joker" };
-export type RommeVariant = "classic" | "gin";
+export type RommeVariant = "classic" | "gin" | "canasta";
 export type RommeRules = {
   variant: RommeVariant;
   openingPoints: 30 | 40;
   requireDiscardUse: boolean;
   ginTargetScore: number;
+  canastaTargetScore: number;
+  canastaRequireCanastaToGoOut: boolean;
 };
 export const defaultRommeRules: RommeRules = {
   variant: "classic",
   openingPoints: 40,
   requireDiscardUse: false,
   ginTargetScore: 100,
+  canastaTargetScore: 5000,
+  canastaRequireCanastaToGoOut: true,
 };
 export type RommeMeld = {
   id: string;
@@ -28,6 +32,7 @@ export type RommePlayer = {
   connected: boolean;
   hand: RommeCard[];
   opened: boolean;
+  teamId?: string;
 };
 export type GinHandAnalysis = {
   melds: Array<{ kind: "set" | "run"; cards: RommeCard[] }>;
@@ -43,6 +48,13 @@ export type GinRoundResult = {
   analyses: Record<string, GinHandAnalysis>;
   scores: Record<string, number>;
 };
+export type CanastaRoundResult = {
+  reason: "out" | "stock";
+  winnerTeamId?: string;
+  roundScores: Record<string, number>;
+  scores: Record<string, number>;
+  hands: Record<string, RommeCard[]>;
+};
 export type RommeState = {
   id: string;
   players: RommePlayer[];
@@ -55,13 +67,20 @@ export type RommeState = {
   rules: RommeRules;
   phase: "playing" | "round-ended" | "finished";
   version: number;
-  result?: { winnerId: string; handPoints: Record<string, number> };
+  result?: {
+    winnerId: string;
+    winnerTeamId?: string;
+    handPoints: Record<string, number>;
+  };
   roundNumber?: number;
   dealerId?: string;
   scores?: Record<string, number>;
   ginOpeningPasses?: number;
   ginStockEnding?: boolean;
   roundResult?: GinRoundResult;
+  canastaRedThrees?: Record<string, RommeCard[]>;
+  canastaDiscardFrozen?: boolean;
+  canastaRoundResult?: CanastaRoundResult;
 };
 export type RommeAction =
   | { type: "romme:draw"; source: "stock" | "discard" }
@@ -104,6 +123,65 @@ export function createRommeDeck(): RommeCard[] {
 export function createGinDeck(): RommeCard[] {
   return suits.flatMap((suit) =>
     ranks52.map((rank) => ({ id: `${suit}-${rank}-1`, suit, rank })),
+  );
+}
+
+export function createCanastaDeck(): RommeCard[] {
+  const cards: RommeCard[] = [];
+  for (let copy = 1; copy <= 2; copy += 1)
+    for (const suit of suits)
+      for (const rank of ranks52)
+        cards.push({ id: `${suit}-${rank}-${copy}`, suit, rank });
+  for (let index = 1; index <= 4; index += 1)
+    cards.push({ id: `joker-${index}`, suit: "joker", rank: "joker" });
+  return cards;
+}
+
+export const canastaCardPoints = (card: RommeCard) =>
+  card.rank === "joker"
+    ? 50
+    : card.rank === "2" || card.rank === "ace"
+      ? 20
+      : ["8", "9", "10", "jack", "queen", "king"].includes(card.rank)
+        ? 10
+        : 5;
+
+const isCanastaWild = (card: RommeCard) =>
+  card.rank === "joker" || card.rank === "2";
+const isRedThree = (card: RommeCard) =>
+  card.rank === "3" &&
+  (card.suit === "hearts" || card.suit === "diamonds");
+const isBlackThree = (card: RommeCard) =>
+  card.rank === "3" &&
+  (card.suit === "clubs" || card.suit === "spades");
+
+export function isValidCanastaMeld(cards: RommeCard[]) {
+  if (cards.length < 3) return false;
+  const naturals = cards.filter((card) => !isCanastaWild(card));
+  const wilds = cards.filter(isCanastaWild);
+  return (
+    naturals.length >= 2 &&
+    wilds.length <= 3 &&
+    naturals.every(
+      (card) =>
+        card.rank !== "3" &&
+        card.rank === naturals[0]?.rank,
+    ) &&
+    (cards.length < 7 || naturals.length >= 4)
+  );
+}
+
+export function isPotentialCanastaMeld(cards: RommeCard[]) {
+  const naturals = cards.filter((card) => !isCanastaWild(card));
+  const wilds = cards.filter(isCanastaWild);
+  return (
+    cards.length <= 11 &&
+    wilds.length <= 3 &&
+    naturals.every(
+      (card) =>
+        card.rank !== "3" &&
+        card.rank === naturals[0]?.rank,
+    )
   );
 }
 
@@ -431,6 +509,202 @@ function drawStock(state: RommeState, randomInt: (max: number) => number) {
   return state.deck.shift();
 }
 
+const canastaTeamIds = (state: RommeState) =>
+  [...new Set(state.players.map((player) => player.teamId).filter(Boolean))] as string[];
+
+const canastaTeamName = (index: number) => `team-${index + 1}`;
+
+function exposeCanastaRedThrees(
+  state: RommeState,
+  player: RommePlayer,
+  replace: boolean,
+) {
+  const teamId = player.teamId!;
+  state.canastaRedThrees ??= {};
+  state.canastaRedThrees[teamId] ??= [];
+  let redIndex = player.hand.findIndex(isRedThree);
+  while (redIndex >= 0) {
+    const [redThree] = player.hand.splice(redIndex, 1);
+    state.canastaRedThrees[teamId]!.push(redThree!);
+    if (replace && state.deck.length) player.hand.push(state.deck.shift()!);
+    redIndex = player.hand.findIndex(isRedThree);
+  }
+}
+
+function canastaOpeningRequirement(state: RommeState, teamId: string) {
+  const score = state.scores?.[teamId] ?? 0;
+  return score < 0 ? 15 : score < 1500 ? 50 : score < 3000 ? 90 : 120;
+}
+
+function canastaMeldRank(cards: RommeCard[]) {
+  return cards.find((card) => !isCanastaWild(card))?.rank;
+}
+
+function canastaHasCanasta(state: RommeState, teamId: string) {
+  return state.melds.some(
+    (meld) => meld.ownerId === teamId && meld.cards.length >= 7,
+  );
+}
+
+function canastaCanGoOut(state: RommeState, teamId: string) {
+  return (
+    !state.rules.canastaRequireCanastaToGoOut ||
+    canastaHasCanasta(state, teamId)
+  );
+}
+
+function canastaTeamLabelPlayer(state: RommeState, teamId: string) {
+  return state.players.find((player) => player.teamId === teamId)?.id ?? "";
+}
+
+function finishCanastaRound(
+  state: RommeState,
+  reason: CanastaRoundResult["reason"],
+  winnerTeamId?: string,
+) {
+  const roundScores: Record<string, number> = {};
+  const scores = { ...(state.scores ?? {}) };
+  for (const teamId of canastaTeamIds(state)) {
+    const teamMelds = state.melds.filter((meld) => meld.ownerId === teamId);
+    const meldPoints = teamMelds.reduce(
+      (sum, meld) =>
+        sum + meld.cards.reduce((value, card) => value + canastaCardPoints(card), 0),
+      0,
+    );
+    const canastaBonus = teamMelds.reduce((sum, meld) => {
+      if (meld.cards.length < 7) return sum;
+      return sum + (meld.cards.some(isCanastaWild) ? 300 : 500);
+    }, 0);
+    const redThrees = state.canastaRedThrees?.[teamId]?.length ?? 0;
+    const redThreeValue = redThrees === 4 ? 800 : redThrees * 100;
+    const redThreeScore = teamMelds.length ? redThreeValue : -redThreeValue;
+    const handPenalty = state.players
+      .filter((player) => player.teamId === teamId)
+      .flatMap((player) => player.hand)
+      .reduce((sum, card) => sum + canastaCardPoints(card), 0);
+    const total =
+      meldPoints +
+      canastaBonus +
+      redThreeScore +
+      (winnerTeamId === teamId ? 100 : 0) -
+      handPenalty;
+    roundScores[teamId] = total;
+    scores[teamId] = (scores[teamId] ?? 0) + total;
+  }
+  state.scores = scores;
+  state.canastaRoundResult = {
+    reason,
+    ...(winnerTeamId ? { winnerTeamId } : {}),
+    roundScores,
+    scores: { ...scores },
+    hands: Object.fromEntries(
+      state.players.map((player) => [player.id, [...player.hand]]),
+    ),
+  };
+  state.hasDrawn = false;
+  delete state.drawnDiscardId;
+  const gameWinnerTeamId = canastaTeamIds(state)
+    .filter((teamId) => (scores[teamId] ?? 0) >= state.rules.canastaTargetScore)
+    .sort((left, right) => (scores[right] ?? 0) - (scores[left] ?? 0))[0];
+  if (gameWinnerTeamId) {
+    state.phase = "finished";
+    state.result = {
+      winnerId: canastaTeamLabelPlayer(state, gameWinnerTeamId),
+      winnerTeamId: gameWinnerTeamId,
+      handPoints: { ...scores },
+    };
+  } else state.phase = "round-ended";
+  state.version += 1;
+  return state;
+}
+
+function dealCanastaRound(
+  state: RommeState,
+  randomInt: (max: number) => number,
+  alternateDealer = true,
+) {
+  if (alternateDealer) {
+    const dealerIndex = state.players.findIndex(
+      (player) => player.id === state.dealerId,
+    );
+    state.dealerId = state.players[(dealerIndex + 1) % state.players.length]!.id;
+  }
+  state.deck = shuffle(createCanastaDeck(), randomInt);
+  state.discard = [];
+  state.melds = [];
+  state.canastaRedThrees = Object.fromEntries(
+    canastaTeamIds(state).map((teamId) => [teamId, []]),
+  );
+  state.canastaDiscardFrozen = false;
+  state.players.forEach((player) => {
+    player.hand = [];
+    player.opened = false;
+  });
+  for (let count = 0; count < 11; count += 1)
+    for (const player of state.players) player.hand.push(state.deck.shift()!);
+  for (const player of state.players)
+    exposeCanastaRedThrees(state, player, true);
+  let opening = state.deck.shift();
+  while (opening) {
+    state.discard.push(opening);
+    if (!isCanastaWild(opening) && !isRedThree(opening)) break;
+    state.canastaDiscardFrozen = true;
+    opening = state.deck.shift();
+  }
+  const dealerIndex = state.players.findIndex(
+    (player) => player.id === state.dealerId,
+  );
+  state.currentPlayerId =
+    state.players[(dealerIndex + 1) % state.players.length]!.id;
+  state.hasDrawn = false;
+  state.phase = "playing";
+  state.roundNumber = (state.roundNumber ?? 0) + 1;
+  delete state.drawnDiscardId;
+  delete state.canastaRoundResult;
+  state.version += 1;
+  return state;
+}
+
+function createCanastaGame(
+  id: string,
+  people: Array<{ id: string; name: string; connected?: boolean }>,
+  randomInt: (max: number) => number,
+  rules: RommeRules,
+) {
+  if (people.length !== 4)
+    throw new RuleError("canasta_requires_four_players");
+  const players: RommePlayer[] = people.map((person, index) => ({
+    ...person,
+    connected: person.connected ?? true,
+    hand: [],
+    opened: false,
+    teamId: canastaTeamName(index % 2),
+  }));
+  const dealerId = players[randomInt(players.length)]!.id;
+  return dealCanastaRound(
+    {
+      id,
+      players,
+      deck: [],
+      discard: [],
+      melds: [],
+      currentPlayerId: "",
+      hasDrawn: false,
+      rules,
+      phase: "playing",
+      version: 0,
+      roundNumber: 0,
+      dealerId,
+      scores: Object.fromEntries([
+        [canastaTeamName(0), 0],
+        [canastaTeamName(1), 0],
+      ]),
+    },
+    randomInt,
+    false,
+  );
+}
+
 export function createRommeGame(
   id: string,
   people: Array<{ id: string; name: string; connected?: boolean }>,
@@ -438,6 +712,8 @@ export function createRommeGame(
   rules: RommeRules = defaultRommeRules,
 ): RommeState {
   rules = { ...defaultRommeRules, ...rules };
+  if (rules.variant === "canasta")
+    return createCanastaGame(id, people, randomInt, rules);
   if (rules.variant === "gin") {
     if (people.length !== 2) throw new RuleError("gin_requires_two_players");
     const players: RommePlayer[] = people.map((person) => ({
@@ -659,6 +935,180 @@ function applyGinAction(
   return next;
 }
 
+function applyCanastaAction(
+  next: RommeState,
+  player: RommePlayer,
+  action: RommeAction,
+  randomInt: (max: number) => number,
+) {
+  if (action.type === "romme:next-round") {
+    if (next.phase !== "round-ended") throw new RuleError("round_not_finished");
+    return dealCanastaRound(next, randomInt);
+  }
+  if (next.phase !== "playing") throw new RuleError("round_finished");
+  if (next.currentPlayerId !== player.id) throw new RuleError("not_your_turn");
+  const teamId = player.teamId!;
+  const teamMelds = () =>
+    next.melds.filter((meld) => meld.ownerId === teamId);
+  const takeCards = (ids: string[]) => {
+    if (new Set(ids).size !== ids.length) throw new RuleError("duplicate_card");
+    const cards = ids.map((id) => player.hand.find((card) => card.id === id));
+    if (cards.some((card) => !card)) throw new RuleError("card_not_in_hand");
+    return cards as RommeCard[];
+  };
+  const requireDiscardCard = (ids: string[]) => {
+    if (next.drawnDiscardId && !ids.includes(next.drawnDiscardId))
+      throw new RuleError("canasta_discard_must_be_melded");
+  };
+  const markTeamOpened = () => {
+    for (const teammate of next.players)
+      if (teammate.teamId === teamId) teammate.opened = true;
+  };
+  const finishIfOut = () => {
+    if (player.hand.length) return false;
+    if (!canastaCanGoOut(next, teamId))
+      throw new RuleError("canasta_required_to_go_out");
+    finishCanastaRound(next, "out", teamId);
+    return true;
+  };
+  if (action.type === "romme:draw") {
+    if (next.hasDrawn) throw new RuleError("already_drew");
+    if (action.source === "stock") {
+      if (!next.deck.length) return finishCanastaRound(next, "stock");
+      player.hand.push(next.deck.shift()!);
+      exposeCanastaRedThrees(next, player, true);
+      if (!player.hand.length && !next.deck.length)
+        return finishCanastaRound(next, "stock");
+      next.hasDrawn = true;
+      next.version += 1;
+      return next;
+    }
+    const top = next.discard.at(-1);
+    if (!top || isCanastaWild(top) || isRedThree(top) || isBlackThree(top))
+      throw new RuleError("canasta_discard_blocked");
+    const matchingNaturals = player.hand.filter(
+      (card) => !isCanastaWild(card) && card.rank === top.rank,
+    ).length;
+    const wilds = player.hand.filter(isCanastaWild).length;
+    const existingMeld = teamMelds().some(
+      (meld) => canastaMeldRank(meld.cards) === top.rank,
+    );
+    const frozen = next.canastaDiscardFrozen || !player.opened;
+    const canTake = frozen
+      ? matchingNaturals >= 2
+      : existingMeld ||
+        matchingNaturals >= 2 ||
+        (matchingNaturals >= 1 && wilds >= 1);
+    if (!canTake) throw new RuleError("canasta_cannot_take_discard");
+    const pile = next.discard.splice(0);
+    player.hand.push(...pile);
+    exposeCanastaRedThrees(next, player, false);
+    next.drawnDiscardId = top.id;
+    next.canastaDiscardFrozen = false;
+    next.hasDrawn = true;
+    next.version += 1;
+    return next;
+  }
+  if (!next.hasDrawn) throw new RuleError("must_draw_first");
+  if (action.type === "romme:meld") {
+    if (!action.groups.length) throw new RuleError("invalid_meld");
+    const allIds = action.groups.flatMap((group) => group.cardIds);
+    const cards = takeCards(allIds);
+    requireDiscardCard(allIds);
+    const byRank = new Map<string, RommeCard[]>();
+    for (const group of action.groups) {
+      const groupCards = group.cardIds.map(
+        (id) => cards.find((card) => card.id === id)!,
+      );
+      if (!isValidCanastaMeld(groupCards))
+        throw new RuleError("invalid_meld");
+      const rank = canastaMeldRank(groupCards)!;
+      byRank.set(rank, [...(byRank.get(rank) ?? []), ...groupCards]);
+    }
+    for (const [rank, additions] of byRank) {
+      const existing = teamMelds().find(
+        (meld) => canastaMeldRank(meld.cards) === rank,
+      );
+      if (existing && !isValidCanastaMeld([...existing.cards, ...additions]))
+        throw new RuleError("invalid_meld");
+    }
+    if (!player.opened) {
+      const points = cards.reduce(
+        (sum, card) => sum + canastaCardPoints(card),
+        0,
+      );
+      if (points < canastaOpeningRequirement(next, teamId))
+        throw new RuleError("opening_points_required");
+    }
+    for (const [rank, additions] of byRank) {
+      const existing = teamMelds().find(
+        (meld) => canastaMeldRank(meld.cards) === rank,
+      );
+      if (existing) {
+        existing.cards.push(...additions);
+        existing.points = existing.cards.reduce(
+          (sum, card) => sum + canastaCardPoints(card),
+          0,
+        );
+      } else
+        next.melds.push({
+          id: `${next.id}:canasta:${next.version}:${next.melds.length}`,
+          ownerId: teamId,
+          kind: "set",
+          cards: additions,
+          points: additions.reduce(
+            (sum, card) => sum + canastaCardPoints(card),
+            0,
+          ),
+        });
+    }
+    player.hand = player.hand.filter((card) => !allIds.includes(card.id));
+    markTeamOpened();
+    delete next.drawnDiscardId;
+    if (!finishIfOut()) next.version += 1;
+    return next;
+  }
+  if (action.type === "romme:lay-off") {
+    if (!player.opened) throw new RuleError("must_open_first");
+    const cards = takeCards(action.cardIds);
+    requireDiscardCard(action.cardIds);
+    const meld = next.melds.find(
+      (candidate) =>
+        candidate.id === action.meldId && candidate.ownerId === teamId,
+    );
+    if (!meld) throw new RuleError("meld_not_found");
+    if (!isValidCanastaMeld([...meld.cards, ...cards]))
+      throw new RuleError("invalid_meld");
+    meld.cards.push(...cards);
+    meld.points = meld.cards.reduce(
+      (sum, card) => sum + canastaCardPoints(card),
+      0,
+    );
+    player.hand = player.hand.filter(
+      (card) => !action.cardIds.includes(card.id),
+    );
+    delete next.drawnDiscardId;
+    if (!finishIfOut()) next.version += 1;
+    return next;
+  }
+  if (action.type !== "romme:discard") throw new RuleError("invalid_action");
+  if (next.drawnDiscardId)
+    throw new RuleError("canasta_discard_must_be_melded");
+  const cardIndex = player.hand.findIndex((card) => card.id === action.cardId);
+  if (cardIndex < 0) throw new RuleError("card_not_in_hand");
+  const [card] = player.hand.splice(cardIndex, 1);
+  next.discard.push(card!);
+  if (isCanastaWild(card!)) next.canastaDiscardFrozen = true;
+  next.hasDrawn = false;
+  if (!finishIfOut()) {
+    const playerIndex = next.players.findIndex((item) => item.id === player.id);
+    next.currentPlayerId =
+      next.players[(playerIndex + 1) % next.players.length]!.id;
+    next.version += 1;
+  }
+  return next;
+}
+
 export function applyRommeAction(
   state: RommeState,
   playerId: string,
@@ -670,6 +1120,8 @@ export function applyRommeAction(
   if (!player) throw new RuleError("not_active");
   if (!player.connected) throw new RuleError("player_offline");
   if (next.phase === "finished") throw new RuleError("game_finished");
+  if (next.rules.variant === "canasta")
+    return applyCanastaAction(next, player, action, randomInt);
   if (next.rules.variant === "gin")
     return applyGinAction(next, player, action, randomInt);
   if (next.phase !== "playing") throw new RuleError("game_finished");
@@ -876,12 +1328,13 @@ export function applyRommeAction(
 }
 
 export function rommePlayerView(state: RommeState, playerId: string) {
-  const revealGinHands =
-    state.rules.variant === "gin" && state.phase !== "playing";
+  const revealRoundHands =
+    (state.rules.variant === "gin" || state.rules.variant === "canasta") &&
+    state.phase !== "playing";
   return {
     ...state,
     players: state.players.map((player) =>
-      player.id === playerId || revealGinHands
+      player.id === playerId || revealRoundHands
         ? player
         : { ...player, hand: [], handCount: player.hand.length },
     ),
@@ -901,7 +1354,20 @@ export function withdrawRommePlayer(
   if (index < 0) throw new RuleError("not_active");
   const wasCurrent = next.currentPlayerId === playerId;
   next.players.splice(index, 1);
-  if (next.players.length < 2) {
+  if (next.rules.variant === "canasta") {
+    const remainingTeamIds = canastaTeamIds(next);
+    const winnerTeamId = remainingTeamIds.find(
+      (teamId) => teamId !== state.players[index]?.teamId,
+    );
+    next.phase = "finished";
+    next.result = {
+      winnerId: winnerTeamId
+        ? canastaTeamLabelPlayer(next, winnerTeamId)
+        : next.players[0]?.id ?? "",
+      ...(winnerTeamId ? { winnerTeamId } : {}),
+      handPoints: { ...(next.scores ?? {}) },
+    };
+  } else if (next.players.length < 2) {
     next.phase = "finished";
     next.result = { winnerId: next.players[0]?.id ?? "", handPoints: {} };
   } else if (wasCurrent) {

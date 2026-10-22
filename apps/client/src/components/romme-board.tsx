@@ -1,6 +1,7 @@
 import type { RommeGameView } from "../models";
 import { ClassicRommeBoard } from "./classic-romme-board";
 import { GinRommeBoard } from "./gin-romme-board";
+import { CanastaBoard } from "./canasta-board";
 
 export type RommeBoardProps = {
   game: RommeGameView;
@@ -11,7 +12,9 @@ export type RommeBoardProps = {
 };
 
 export function RommeBoard(props: RommeBoardProps) {
-  return props.game.rules.variant === "gin" ? (
+  return props.game.rules.variant === "canasta" ? (
+    <CanastaBoard {...props} />
+  ) : props.game.rules.variant === "gin" ? (
     <GinRommeBoard {...props} />
   ) : (
     <ClassicRommeBoard {...props} />

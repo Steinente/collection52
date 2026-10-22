@@ -364,7 +364,7 @@ button:disabled {
   padding: 0.16rem 0.45rem;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
   border-radius: 999px;
-  color: var(--accent);
+  color: var(--text);
   font-size: 0.68rem;
   font-weight: 800;
   line-height: 1;

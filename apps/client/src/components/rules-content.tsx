@@ -82,7 +82,7 @@ export function RulesContent({
           role="tablist"
           aria-label={t("rommeVariants")}
         >
-          {(["classic", "gin"] as const).map((variant) => (
+          {(["classic", "gin", "canasta"] as const).map((variant) => (
             <button
               key={variant}
               id={`romme-rules-tab-${variant}`}
@@ -96,12 +96,48 @@ export function RulesContent({
               {t(
                 variant === "classic"
                   ? "rommeVariantClassic"
-                  : "rommeVariantGin",
+                  : variant === "gin"
+                    ? "rommeVariantGin"
+                    : "rommeVariantCanasta",
               )}
             </button>
           ))}
         </div>
-        {activeRommeVariant === "gin" ? (
+        {activeRommeVariant === "canasta" ? (
+          <div
+            className="rules-panel"
+            id="romme-rules-panel-canasta"
+            role="tabpanel"
+            aria-labelledby="romme-rules-tab-canasta"
+          >
+            <p>{t("canastaRulesIntro")}</p>
+            <h3>{t("canastaRulesGoalTitle")}</h3>
+            <p>{t("canastaRulesGoalBody")}</p>
+            <h3>{t("canastaRulesFlowTitle")}</h3>
+            <ol>
+              {(
+                [
+                  "teams",
+                  "setup",
+                  "threes",
+                  "draw",
+                  "melds",
+                  "opening",
+                  "discardPile",
+                  "goingOut",
+                  "scoring",
+                ] as const
+              ).map((step) => (
+                <li key={step}>
+                  <strong>{t(`canastaRules_${step}Title`)}</strong>
+                  <span>{t(`canastaRules_${step}Body`)}</span>
+                </li>
+              ))}
+            </ol>
+            <h3>{t("canastaRulesEndTitle")}</h3>
+            <p>{t("canastaRulesEndBody")}</p>
+          </div>
+        ) : activeRommeVariant === "gin" ? (
           <div
             className="rules-panel"
             id="romme-rules-panel-gin"
@@ -170,6 +206,38 @@ export function RulesContent({
         )}
       </div>
     );
+  if (gameId === "spades" || gameId === "oh-hell" || gameId === "cheat") {
+    const prefix =
+      gameId === "spades"
+        ? "spadesRules"
+        : gameId === "oh-hell"
+          ? "ohHellRules"
+          : "cheatRules";
+    const steps =
+      gameId === "spades"
+        ? ["setup", "bidding", "nil", "play", "scoring", "bags"]
+        : gameId === "oh-hell"
+          ? ["setup", "schedule", "bidding", "dealer", "play", "scoring"]
+          : ["setup", "sequence", "play", "challenge", "pickup", "finalPlay"];
+    return (
+      <div className="rules-content">
+        <p>{t(`${prefix}Intro`)}</p>
+        <h3>{t(`${prefix}GoalTitle`)}</h3>
+        <p>{t(`${prefix}GoalBody`)}</p>
+        <h3>{t(`${prefix}FlowTitle`)}</h3>
+        <ol>
+          {steps.map((step) => (
+            <li key={step}>
+              <strong>{t(`${prefix}_${step}Title`)}</strong>
+              <span>{t(`${prefix}_${step}Body`)}</span>
+            </li>
+          ))}
+        </ol>
+        <h3>{t(`${prefix}EndTitle`)}</h3>
+        <p>{t(`${prefix}EndBody`)}</p>
+      </div>
+    );
+  }
   const steps = [
     "setup",
     "attack",

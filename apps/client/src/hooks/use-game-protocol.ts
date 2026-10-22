@@ -10,6 +10,9 @@ import type {
   ProtocolEntry,
   RommeGameView,
   SchwimmenGameView,
+  SpadesGameView,
+  OhHellGameView,
+  CheatGameView,
 } from "../models";
 
 type GameProtocolOptions = {
@@ -43,7 +46,10 @@ export function useGameProtocol({
     const playerName = (id?: string) =>
       lobby.players.find((player) => player.id === id)?.name ?? "";
     const cardName = (id: unknown) => {
-      const card = String(id ?? "");
+      const rawCard = String(id ?? "");
+      const card = /^d\d+-/.test(rawCard)
+        ? rawCard.replace(/^d\d+-/, "")
+        : rawCard;
       if (card.startsWith("joker-")) return t("rommeJoker");
       const [suit, rank] = card.split("-");
       if (!suit || !rank) return card;
@@ -270,7 +276,9 @@ export function useGameProtocol({
           text: t(
             rommeGame.rules.variant === "gin"
               ? "ginProtocolStarted"
-              : "rommeProtocolStarted",
+              : rommeGame.rules.variant === "canasta"
+                ? "canastaProtocolStarted"
+                : "rommeProtocolStarted",
             {
               player: playerName(rommeGame.currentPlayerId),
               cards: spokenHand.map((card) => cardName(card.id)).join(", "),
@@ -322,7 +330,12 @@ export function useGameProtocol({
               card: cardName(event.data.cardId),
             });
           else if (event.type === "game.romme.next-round")
-            text = t("ginProtocolNextRound", { round: rommeGame.roundNumber });
+            text = t(
+              rommeGame.rules.variant === "canasta"
+                ? "canastaProtocolNextRound"
+                : "ginProtocolNextRound",
+              { round: rommeGame.roundNumber },
+            );
           if (text)
             additions.push({
               id: `event-${event.id}`,
@@ -355,6 +368,17 @@ export function useGameProtocol({
               },
             ),
           });
+        if (
+          rommeGame.rules.variant === "canasta" &&
+          previous?.phase === "playing" &&
+          rommeGame.phase !== "playing" &&
+          rommeGame.canastaRoundResult
+        )
+          additions.push({
+            id: `round-result-${rommeGame.version}`,
+            timestamp: Date.now(),
+            text: t("canastaProtocolRoundEnd"),
+          });
         if (previous?.phase !== "finished" && rommeGame.phase === "finished")
           additions.push({
             id: `result-${rommeGame.version}`,
@@ -362,12 +386,111 @@ export function useGameProtocol({
             text: t(
               rommeGame.rules.variant === "gin"
                 ? "ginProtocolFinished"
-                : "rommeProtocolFinished",
-              { name: playerName(rommeGame.result?.winnerId) },
+                : rommeGame.rules.variant === "canasta"
+                  ? "canastaProtocolFinished"
+                  : "rommeProtocolFinished",
+              {
+                name:
+                  rommeGame.rules.variant === "canasta"
+                    ? rommeGame.players
+                        .filter(
+                          (player) =>
+                            player.teamId === rommeGame.result?.winnerTeamId,
+                        )
+                        .map((player) => player.name)
+                        .join(" & ")
+                    : playerName(rommeGame.result?.winnerId),
+              },
             ),
           });
       }
       previousGame.current = rommeGame;
+      if (additions.length) {
+        setProtocolEntries((current) => [...current, ...additions].slice(-100));
+        announce(additions.map((entry) => entry.text).join(" "));
+      }
+      return;
+    }
+    if (["spades", "oh-hell", "cheat"].includes(lobby.gameId)) {
+      const socialGame = game as
+        | SpadesGameView
+        | OhHellGameView
+        | CheatGameView;
+      const socialMe = socialGame.players.find(
+        (player) => player.id === playerId,
+      );
+      if (narratedGameId.current !== socialGame.id) {
+        if (!socialMe?.hand.length) return;
+        narratedGameId.current = socialGame.id;
+        setProtocolEntries([]);
+        setProtocolOpen(true);
+        lastNarratedSequence.current = Math.max(
+          0,
+          ...events.map((event) => event.sequence),
+        );
+        additions.push({
+          id: `start-${socialGame.id}`,
+          timestamp: Date.now(),
+          text: t("socialProtocolStarted", {
+            game: t(lobby.gameId),
+            cards: socialMe.hand.map((card) => cardName(card.id)).join(", "),
+          }),
+          private: true,
+        });
+      } else {
+        for (const event of events
+          .filter(
+            (candidate) => candidate.sequence > lastNarratedSequence.current,
+          )
+          .sort((a, b) => a.sequence - b.sequence)) {
+          const name = playerName(event.actorId);
+          let text = "";
+          if (event.type === "game.cards.drawn") text = privateDrawText(event);
+          else if (
+            event.type === "game.spades.bid" ||
+            event.type === "game.oh-hell.bid"
+          )
+            text = t("trickProtocolBid", { name, count: event.data.bid });
+          else if (
+            event.type === "game.spades.play" ||
+            event.type === "game.oh-hell.play"
+          )
+            text = t("trickProtocolPlay", {
+              name,
+              card: cardName(event.data.cardId),
+            });
+          else if (
+            event.type === "game.spades.next-round" ||
+            event.type === "game.oh-hell.next-round"
+          )
+            text = t("protocolNextRound");
+          else if (event.type === "game.cheat.play")
+            text = t("cheatProtocolPlay", { name, count: event.data.count });
+          else if (event.type === "game.cheat.challenge")
+            text = t("cheatProtocolChallenge", { name });
+          else if (event.type === "game.cheat.accept")
+            text = t("cheatProtocolAccept", { name });
+          if (text)
+            additions.push({
+              id: `event-${event.id}`,
+              timestamp: event.timestamp,
+              text,
+              private: event.visibility === "private",
+            });
+          lastNarratedSequence.current = Math.max(
+            lastNarratedSequence.current,
+            event.sequence,
+          );
+        }
+        const previous = previousGame.current;
+        if (previous?.phase !== "finished" && socialGame.phase === "finished")
+          additions.push({
+            id: `result-${socialGame.version}`,
+            timestamp: Date.now(),
+            text: t("socialProtocolFinished"),
+          });
+      }
+      previousGame.current = socialGame;
       if (additions.length) {
         setProtocolEntries((current) => [...current, ...additions].slice(-100));
         announce(additions.map((entry) => entry.text).join(" "));

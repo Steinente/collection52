@@ -10,9 +10,15 @@ import { promisify } from "node:util";
 import {
   defaultMauMauRules,
   defaultRommeRules,
+  defaultSpadesRules,
+  defaultOhHellRules,
+  defaultCheatRules,
   knackPlayerView,
   mauMauPlayerView,
   rommePlayerView,
+  spadesPlayerView,
+  ohHellPlayerView,
+  cheatPlayerView,
   shuffle,
   playerView as durakPlayerView,
   type DurakState,
@@ -25,6 +31,12 @@ import {
   type PublicLobby,
   type RommeRules,
   type RommeState,
+  type SpadesRules,
+  type SpadesState,
+  type OhHellRules,
+  type OhHellState,
+  type CheatRules,
+  type CheatState,
   type StructuredEvent,
 } from "@collection52/shared";
 import {
@@ -58,6 +70,9 @@ export type Lobby = {
   deckSize: 32 | 36 | 52;
   mauMauRules: MauMauRules;
   rommeRules: RommeRules;
+  spadesRules: SpadesRules;
+  ohHellRules: OhHellRules;
+  cheatRules: CheatRules;
   passwordHash?: string;
   passwordSalt?: string;
   hostId: string;
@@ -86,6 +101,9 @@ export type CreateLobbySettings = {
   password?: string | undefined;
   mauMauRules?: MauMauRules | undefined;
   rommeRules?: RommeRules | undefined;
+  spadesRules?: SpadesRules | undefined;
+  ohHellRules?: OhHellRules | undefined;
+  cheatRules?: CheatRules | undefined;
 };
 const hashToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
@@ -173,9 +191,7 @@ export class LobbyManager {
     return {
       code: l.code,
       gameId: l.gameId,
-      ...(l.gameId === "romme"
-        ? { rommeVariant: l.rommeRules.variant }
-        : {}),
+      ...(l.gameId === "romme" ? { rommeVariant: l.rommeRules.variant } : {}),
       status: l.status,
       playerCount: l.players.length,
       maxPlayers: l.maxPlayers,
@@ -193,7 +209,13 @@ export class LobbyManager {
           ? mauMauPlayerView(lobby.game as MauMauState, playerId)
           : lobby.gameId === "romme"
             ? rommePlayerView(lobby.game as RommeState, playerId)
-            : durakPlayerView(lobby.game as DurakState, playerId)
+            : lobby.gameId === "spades"
+              ? spadesPlayerView(lobby.game as SpadesState, playerId)
+              : lobby.gameId === "oh-hell"
+                ? ohHellPlayerView(lobby.game as OhHellState, playerId)
+                : lobby.gameId === "cheat"
+                  ? cheatPlayerView(lobby.game as CheatState, playerId)
+                  : durakPlayerView(lobby.game as DurakState, playerId)
       : undefined;
     return {
       ...this.summary(lobby),
@@ -210,6 +232,9 @@ export class LobbyManager {
       inactivityDeadline: lobby.activityAt + this.idleMs,
       ...(lobby.gameId === "mau-mau" ? { mauMauRules: lobby.mauMauRules } : {}),
       ...(lobby.gameId === "romme" ? { rommeRules: lobby.rommeRules } : {}),
+      ...(lobby.gameId === "spades" ? { spadesRules: lobby.spadesRules } : {}),
+      ...(lobby.gameId === "oh-hell" ? { ohHellRules: lobby.ohHellRules } : {}),
+      ...(lobby.gameId === "cheat" ? { cheatRules: lobby.cheatRules } : {}),
       events: lobby.events.filter(
         (event) =>
           event.visibility === "public" || event.recipientId === playerId,
@@ -348,7 +373,11 @@ export class LobbyManager {
     };
     const gameId = settings.gameId ?? "durak";
     const deckSize =
-      gameId === "durak" ? settings.deckSize : gameId === "romme" ? 52 : 32;
+      gameId === "durak"
+        ? settings.deckSize
+        : ["romme", "spades", "oh-hell", "cheat"].includes(gameId)
+          ? 52
+          : 32;
     const rommeRules = { ...defaultRommeRules, ...settings.rommeRules };
     const lobby: Lobby = {
       id,
@@ -357,12 +386,23 @@ export class LobbyManager {
       status: "waiting",
       visibility: settings.visibility,
       maxPlayers:
-        gameId === "romme" && rommeRules.variant === "gin"
-          ? 2
-          : settings.maxPlayers,
+        gameId === "spades"
+          ? 4
+          : gameId === "oh-hell"
+            ? Math.min(7, Math.max(3, settings.maxPlayers))
+            : gameId === "romme" && rommeRules.variant === "gin"
+              ? 2
+              : gameId === "romme" && rommeRules.variant === "canasta"
+                ? 4
+                : gameId === "cheat"
+                  ? Math.min(10, settings.maxPlayers)
+                  : Math.min(6, settings.maxPlayers),
       deckSize,
       mauMauRules: { ...defaultMauMauRules, ...settings.mauMauRules },
       rommeRules,
+      spadesRules: { ...defaultSpadesRules, ...settings.spadesRules },
+      ohHellRules: { ...defaultOhHellRules, ...settings.ohHellRules },
+      cheatRules: { ...defaultCheatRules, ...settings.cheatRules },
       hostId: player.id,
       players: [player],
       gameNumber: 0,
@@ -502,6 +542,19 @@ export class LobbyManager {
       lobby.players.length !== 2
     )
       throw new Error("gin_requires_two_players");
+    if (
+      lobby.gameId === "romme" &&
+      lobby.rommeRules.variant === "canasta" &&
+      lobby.players.length !== 4
+    )
+      throw new Error("canasta_requires_four_players");
+    if (lobby.gameId === "spades" && lobby.players.length !== 4)
+      throw new Error("spades_requires_four_players");
+    if (
+      lobby.gameId === "oh-hell" &&
+      (lobby.players.length < 3 || lobby.players.length > 7)
+    )
+      throw new Error("oh_hell_requires_three_to_seven_players");
     const players = shuffle(lobby.players, this.playerOrderRandomInt);
     lobby.gameNumber += 1;
     const game = createGame({
@@ -511,6 +564,9 @@ export class LobbyManager {
       deckSize: lobby.deckSize,
       mauMauRules: lobby.mauMauRules,
       rommeRules: lobby.rommeRules,
+      spadesRules: lobby.spadesRules,
+      ohHellRules: lobby.ohHellRules,
+      cheatRules: lobby.cheatRules,
     });
     lobby.players = players;
     lobby.game = game;
@@ -532,6 +588,9 @@ export class LobbyManager {
       password?: string | undefined;
       mauMauRules?: MauMauRules | undefined;
       rommeRules?: RommeRules | undefined;
+      spadesRules?: SpadesRules | undefined;
+      ohHellRules?: OhHellRules | undefined;
+      cheatRules?: CheatRules | undefined;
     },
   ) {
     if (lobby.hostId !== playerId) throw new Error("host_only");
@@ -542,9 +601,39 @@ export class LobbyManager {
       lobby.players.length > 2
     )
       throw new Error("gin_requires_two_players");
+    if (
+      settings.rommeRules?.variant === "canasta" &&
+      lobby.gameId === "romme" &&
+      lobby.players.length > 4
+    )
+      throw new Error("canasta_requires_four_players");
     if (settings.maxPlayers !== undefined) {
       if (settings.maxPlayers < lobby.players.length)
         throw new Error("player_limit_too_low");
+      if (lobby.gameId === "spades" && settings.maxPlayers !== 4)
+        throw new Error("spades_requires_four_players");
+      if (
+        lobby.gameId === "romme" &&
+        lobby.rommeRules.variant === "gin" &&
+        settings.maxPlayers !== 2
+      )
+        throw new Error("gin_requires_two_players");
+      if (
+        lobby.gameId === "romme" &&
+        lobby.rommeRules.variant === "canasta" &&
+        settings.maxPlayers !== 4
+      )
+        throw new Error("canasta_requires_four_players");
+      if (
+        lobby.gameId === "oh-hell" &&
+        (settings.maxPlayers < 3 || settings.maxPlayers > 7)
+      )
+        throw new Error("oh_hell_requires_three_to_seven_players");
+      if (
+        !["oh-hell", "cheat"].includes(lobby.gameId) &&
+        settings.maxPlayers > 6
+      )
+        throw new Error("invalid_player_count");
       lobby.maxPlayers = settings.maxPlayers;
     }
     if (settings.deckSize !== undefined && lobby.gameId === "durak")
@@ -556,7 +645,14 @@ export class LobbyManager {
     if (settings.rommeRules !== undefined && lobby.gameId === "romme") {
       lobby.rommeRules = { ...defaultRommeRules, ...settings.rommeRules };
       if (lobby.rommeRules.variant === "gin") lobby.maxPlayers = 2;
+      if (lobby.rommeRules.variant === "canasta") lobby.maxPlayers = 4;
     }
+    if (settings.spadesRules !== undefined && lobby.gameId === "spades")
+      lobby.spadesRules = { ...defaultSpadesRules, ...settings.spadesRules };
+    if (settings.ohHellRules !== undefined && lobby.gameId === "oh-hell")
+      lobby.ohHellRules = { ...defaultOhHellRules, ...settings.ohHellRules };
+    if (settings.cheatRules !== undefined && lobby.gameId === "cheat")
+      lobby.cheatRules = { ...defaultCheatRules, ...settings.cheatRules };
     if (settings.password !== undefined) {
       if (settings.password) {
         const result = await this.hashPassword(settings.password);

@@ -1297,3 +1297,194 @@ test("Rommé can be configured, started, and drawn from", async ({
     }
   }
 });
+
+test("Canasta is a responsive, accessible four-player Rommé-family game", async ({
+  browser,
+}) => {
+  const hostContext = await browser.newContext();
+  const guestContexts = await Promise.all([
+    browser.newContext(),
+    browser.newContext(),
+    browser.newContext(),
+  ]);
+  const host = await hostContext.newPage();
+  const guests = await Promise.all(
+    guestContexts.map((context) => context.newPage()),
+  );
+  try {
+    await host.goto("/");
+    await host.getByLabel(/Display name|Benutzername/).fill("Anna");
+    await host
+      .getByRole("button", { name: /Show all games|Alle Spiele anzeigen/ })
+      .click();
+    const canastaCard = host
+      .getByRole("dialog")
+      .locator(".game-catalog-card")
+      .filter({
+        hasText: /Canasta for four players|Canasta für vier Personen/,
+      });
+    await expect(canastaCard).toBeVisible();
+    await canastaCard.getByRole("button", { name: /Select|Auswählen/ }).click();
+    await expect
+      .poll(() => host.evaluate(() => localStorage.getItem("c52:game")))
+      .toBe("canasta");
+    await host
+      .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
+      .click();
+    const code = await readLobbyCode(host);
+    await rememberTestLobby(host, code);
+    await expect(
+      host.getByRole("heading", { level: 1, name: "Canasta" }),
+    ).toBeVisible();
+    await expect(
+      host.getByRole("button", { name: /Start game|Partie starten/ }),
+    ).toBeDisabled();
+    await expect(host.getByText(/108 cards|108 Karten/).first()).toBeVisible();
+
+    for (const [index, guest] of guests.entries()) {
+      await guest.goto("/");
+      await guest
+        .getByLabel(/Display name|Benutzername/)
+        .fill(["Berta", "Carla", "Dora"][index]!);
+      await guest.getByLabel(/Lobby code|Lobby-Code/).fill(code);
+      const join = guest.getByRole("button", {
+        name: /Join lobby|Lobby beitreten/,
+      });
+      await expect(join).toBeEnabled();
+      await join.click();
+    }
+
+    const start = host.getByRole("button", {
+      name: /Start game|Partie starten/,
+    });
+    await expect(start).toBeEnabled();
+    await start.click();
+    await expect(
+      host.getByRole("heading", {
+        level: 2,
+        name: /Canasta.*round|Canasta.*Runde/,
+      }),
+    ).toBeVisible();
+    await expect(host.locator(".hand-cards .playing-card")).toHaveCount(11);
+    await expect(host.locator(".gin-scores > div")).toHaveCount(2);
+    expect(
+      await host.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+      ),
+    ).toBe(true);
+    const results = await new AxeBuilder({ page: host })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  } finally {
+    try {
+      const closeLobby = host.getByRole("button", {
+        name: /Close lobby|Lobby schließen/,
+      });
+      if (!host.isClosed() && (await closeLobby.count())) {
+        host.once("dialog", (dialog) => dialog.accept());
+        await closeLobby.click({ timeout: 2_000 });
+      }
+    } finally {
+      await hostContext.close();
+      await Promise.all(guestContexts.map((context) => context.close()));
+    }
+  }
+});
+
+test("Spades, Oh Hell and Cheat are playable, responsive and accessible", async ({
+  page,
+  browser,
+}) => {
+  const games = [
+    {
+      id: "spades",
+      cardText: /partnership trick-taking|Partnerschaftliches Stichspiel/,
+      guests: ["Berta", "Carla", "Dora"],
+      board: ".trick-game-board",
+      handSize: 13,
+    },
+    {
+      id: "oh-hell",
+      cardText: /every bid must be exact|jede Ansage exakt/,
+      guests: ["Berta", "Carla"],
+      board: ".trick-game-board",
+      handSize: 10,
+    },
+    {
+      id: "cheat",
+      cardText: /bluffing shedding game|Bluff-Ablegespiel/,
+      guests: ["Berta"],
+      board: ".cheat-board",
+      handSize: 26,
+    },
+  ] as const;
+
+  for (const game of games) {
+    const guestContexts = await Promise.all(
+      game.guests.map(() => browser.newContext()),
+    );
+    const guests = await Promise.all(
+      guestContexts.map((context) => context.newPage()),
+    );
+    try {
+      await page.goto("/");
+      await page.getByLabel(/Display name|Benutzername/).fill("Anna");
+      await page
+        .getByRole("button", { name: /Show all games|Alle Spiele anzeigen/ })
+        .click();
+      const card = page
+        .getByRole("dialog")
+        .locator(".game-catalog-card")
+        .filter({ hasText: game.cardText });
+      await expect(card).toBeVisible();
+      await card.getByRole("button", { name: /Select|Auswählen/ }).click();
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem("c52:game")))
+        .toBe(game.id);
+      await page
+        .getByRole("button", { name: /Create lobby|Lobby erstellen/ })
+        .click();
+      const code = await readLobbyCode(page);
+      await rememberTestLobby(page, code);
+
+      for (const [index, guest] of guests.entries()) {
+        await guest.goto("/");
+        await guest
+          .getByLabel(/Display name|Benutzername/)
+          .fill(game.guests[index]!);
+        await guest.getByLabel(/Lobby code|Lobby-Code/).fill(code);
+        await guest
+          .getByRole("button", { name: /Join lobby|Lobby beitreten/ })
+          .click();
+      }
+      const start = page.getByRole("button", {
+        name: /Start game|Partie starten/,
+      });
+      await expect(start).toBeEnabled();
+      await start.click();
+      await expect(page.locator(game.board)).toBeVisible();
+      await expect(page.locator(".hand-cards .playing-card")).toHaveCount(
+        game.handSize,
+      );
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+        ),
+      ).toBe(true);
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(results.violations).toEqual([]);
+
+      const closeLobby = page.getByRole("button", {
+        name: /Close lobby|Lobby schließen/,
+      });
+      page.once("dialog", (dialog) => dialog.accept());
+      await closeLobby.click();
+      await page.evaluate(() => localStorage.removeItem("c52:retained-lobby"));
+    } finally {
+      await Promise.all(guestContexts.map((context) => context.close()));
+    }
+  }
+});

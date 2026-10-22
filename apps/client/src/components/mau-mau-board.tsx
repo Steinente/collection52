@@ -143,6 +143,7 @@ export function MauMauBoard({
           {topCard && (
             <div
               className={`mau-mau-discard-card ${game.discardCount > 1 ? "stacked" : ""}`}
+              role="img"
               aria-label={cardText(topCard)}
             >
               <CardFace card={topCard} />

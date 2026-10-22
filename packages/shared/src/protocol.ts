@@ -18,7 +18,15 @@ export const accentColorSchema = z
   .string()
   .regex(/^#[0-9a-f]{6}$/i)
   .transform((color) => color.toLowerCase());
-export const gameIdSchema = z.enum(["durak", "schwimmen", "mau-mau", "romme"]);
+export const gameIdSchema = z.enum([
+  "durak",
+  "schwimmen",
+  "mau-mau",
+  "romme",
+  "spades",
+  "oh-hell",
+  "cheat",
+]);
 export const mauMauRulesSchema = z.object({
   stackSevens: z.boolean(),
   forbidJackOnJack: z.boolean(),
@@ -26,20 +34,40 @@ export const mauMauRulesSchema = z.object({
   aceReverses: z.boolean(),
 });
 export const rommeRulesSchema = z.object({
-  variant: z.enum(["classic", "gin"]).default("classic"),
+  variant: z.enum(["classic", "gin", "canasta"]).default("classic"),
   openingPoints: z.union([z.literal(30), z.literal(40)]),
   requireDiscardUse: z.boolean(),
   ginTargetScore: z.number().int().min(10).max(500).default(100),
+  canastaTargetScore: z.number().int().min(1000).max(20000).default(5000),
+  canastaRequireCanastaToGoOut: z.boolean().default(true),
+});
+export const spadesRulesSchema = z.object({
+  targetScore: z.number().int().min(100).max(1000).default(500),
+  nilBonus: z.number().int().min(50).max(200).default(100),
+  bagPenalty: z.boolean().default(true),
+});
+export const ohHellRulesSchema = z.object({
+  exactBonus: z.number().int().min(0).max(50).default(10),
+  scoreMissedTricks: z.boolean().default(true),
+  forbidExactBidTotal: z.boolean().default(true),
+});
+export const cheatRulesSchema = z.object({
+  deckCount: z.union([z.literal(1), z.literal(2)]).default(1),
+  direction: z.enum(["ascending", "descending"]).default("ascending"),
+  maxCardsPerTurn: z.number().int().min(1).max(8).default(4),
 });
 export const lobbySettingsSchema = z
   .object({
     gameId: gameIdSchema.default("durak"),
-    maxPlayers: z.number().int().min(2).max(6),
+    maxPlayers: z.number().int().min(2).max(10),
     deckSize: z.union([z.literal(32), z.literal(36), z.literal(52)]),
     visibility: z.enum(["public", "private"]),
     password: z.string().max(72).optional(),
     mauMauRules: mauMauRulesSchema.optional(),
     rommeRules: rommeRulesSchema.optional(),
+    spadesRules: spadesRulesSchema.optional(),
+    ohHellRules: ohHellRulesSchema.optional(),
+    cheatRules: cheatRulesSchema.optional(),
   })
   .superRefine((settings, context) => {
     if (
@@ -63,14 +91,26 @@ export const lobbySettingsSchema = z
         path: ["deckSize"],
         message: "invalid_durak_deck",
       });
+    if (
+      ["spades", "oh-hell", "cheat"].includes(settings.gameId) &&
+      settings.deckSize !== 52
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["deckSize"],
+        message: "invalid_52_card_deck",
+      });
   });
 export const lobbyUpdateSchema = z.object({
-  maxPlayers: z.number().int().min(2).max(6).optional(),
+  maxPlayers: z.number().int().min(2).max(10).optional(),
   deckSize: z.union([z.literal(36), z.literal(52)]).optional(),
   visibility: z.enum(["public", "private"]).optional(),
   password: z.string().max(72).optional(),
   mauMauRules: mauMauRulesSchema.optional(),
   rommeRules: rommeRulesSchema.optional(),
+  spadesRules: spadesRulesSchema.optional(),
+  ohHellRules: ohHellRulesSchema.optional(),
+  cheatRules: cheatRulesSchema.optional(),
 });
 export const actionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -126,6 +166,24 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("romme:knock"), cardId: z.string().min(1) }),
   z.object({ type: z.literal("romme:pass-opening") }),
   z.object({ type: z.literal("romme:next-round") }),
+  z.object({
+    type: z.literal("spades:bid"),
+    bid: z.number().int().min(0).max(13),
+  }),
+  z.object({ type: z.literal("spades:play"), cardId: z.string().min(1) }),
+  z.object({ type: z.literal("spades:next-round") }),
+  z.object({
+    type: z.literal("oh-hell:bid"),
+    bid: z.number().int().min(0).max(17),
+  }),
+  z.object({ type: z.literal("oh-hell:play"), cardId: z.string().min(1) }),
+  z.object({ type: z.literal("oh-hell:next-round") }),
+  z.object({
+    type: z.literal("cheat:play"),
+    cardIds: z.array(z.string().min(1)).min(1).max(8),
+  }),
+  z.object({ type: z.literal("cheat:challenge") }),
+  z.object({ type: z.literal("cheat:accept") }),
 ]);
 
 export type GameId = z.infer<typeof gameIdSchema>;
@@ -157,6 +215,9 @@ export type PublicLobby = LobbySummary & {
   inactivityDeadline: number;
   mauMauRules?: z.infer<typeof mauMauRulesSchema>;
   rommeRules?: z.infer<typeof rommeRulesSchema>;
+  spadesRules?: z.infer<typeof spadesRulesSchema>;
+  ohHellRules?: z.infer<typeof ohHellRulesSchema>;
+  cheatRules?: z.infer<typeof cheatRulesSchema>;
   game?: unknown;
   events: StructuredEvent[];
 };

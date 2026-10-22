@@ -1,9 +1,15 @@
 import {
   defaultMauMauRules,
   defaultRommeRules,
+  defaultSpadesRules,
+  defaultOhHellRules,
+  defaultCheatRules,
   type GameId,
   type MauMauRules,
   type RommeRules,
+  type SpadesRules,
+  type OhHellRules,
+  type CheatRules,
   type Suit,
 } from "@collection52/shared";
 import { defaultHandSortSettings, type HandSortSettings } from "./hand-sort";
@@ -26,7 +32,13 @@ export const defaultPreferences: Preferences = {
   volume: 1,
 };
 
-export { defaultMauMauRules, defaultRommeRules };
+export {
+  defaultMauMauRules,
+  defaultRommeRules,
+  defaultSpadesRules,
+  defaultOhHellRules,
+  defaultCheatRules,
+};
 
 export const gameDefinitions = [
   {
@@ -68,6 +80,35 @@ export const gameDefinitions = [
     aliasesKey: "ginRommeAliases",
     searchAliasesKey: "ginRommeSearchAliases",
   },
+  {
+    id: "canasta",
+    gameId: "romme",
+    rommeVariant: "canasta",
+    nameKey: "rommeVariantCanasta",
+    descriptionKey: "canastaDescription",
+    aliasesKey: "canastaAliases",
+  },
+  {
+    id: "spades",
+    gameId: "spades",
+    nameKey: "spades",
+    descriptionKey: "spadesDescription",
+    aliasesKey: "spadesAliases",
+  },
+  {
+    id: "oh-hell",
+    gameId: "oh-hell",
+    nameKey: "oh-hell",
+    descriptionKey: "ohHellDescription",
+    aliasesKey: "ohHellAliases",
+  },
+  {
+    id: "cheat",
+    gameId: "cheat",
+    nameKey: "cheat",
+    descriptionKey: "cheatDescription",
+    aliasesKey: "cheatAliases",
+  },
 ] as const;
 
 export type GameSelectionId = (typeof gameDefinitions)[number]["id"];
@@ -91,6 +132,9 @@ export const storageKeys = {
   selectedGame: "c52:game",
   mauMauRules: "c52:mau-mau-rules",
   rommeRules: "c52:romme-rules",
+  spadesRules: "c52:spades-rules",
+  ohHellRules: "c52:oh-hell-rules",
+  cheatRules: "c52:cheat-rules",
   retainedLobby: "c52:retained-lobby",
   handSort: "c52:hand-sort",
 } as const;
@@ -179,7 +223,10 @@ export function loadRommeRules(): RommeRules {
       localStorage.getItem(storageKeys.rommeRules) ?? "{}",
     ) as Partial<RommeRules>;
     return {
-      variant: stored.variant === "gin" ? "gin" : "classic",
+      variant:
+        stored.variant === "gin" || stored.variant === "canasta"
+          ? stored.variant
+          : "classic",
       openingPoints: stored.openingPoints === 30 ? 30 : 40,
       requireDiscardUse: stored.requireDiscardUse === true,
       ginTargetScore:
@@ -188,9 +235,70 @@ export function loadRommeRules(): RommeRules {
         stored.ginTargetScore <= 500
           ? Math.round(stored.ginTargetScore)
           : 100,
+      canastaTargetScore:
+        typeof stored.canastaTargetScore === "number" &&
+        stored.canastaTargetScore >= 1000 &&
+        stored.canastaTargetScore <= 20000
+          ? Math.round(stored.canastaTargetScore)
+          : 5000,
+      canastaRequireCanastaToGoOut:
+        stored.canastaRequireCanastaToGoOut !== false,
     };
   } catch {
     return { ...defaultRommeRules };
+  }
+}
+
+export function loadSpadesRules(): SpadesRules {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(storageKeys.spadesRules) ?? "{}",
+    ) as Partial<SpadesRules>;
+    return {
+      targetScore: [250, 500, 750, 1000].includes(stored.targetScore ?? 0)
+        ? stored.targetScore!
+        : defaultSpadesRules.targetScore,
+      nilBonus: [50, 100, 200].includes(stored.nilBonus ?? 0)
+        ? stored.nilBonus!
+        : defaultSpadesRules.nilBonus,
+      bagPenalty: stored.bagPenalty !== false,
+    };
+  } catch {
+    return { ...defaultSpadesRules };
+  }
+}
+
+export function loadOhHellRules(): OhHellRules {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(storageKeys.ohHellRules) ?? "{}",
+    ) as Partial<OhHellRules>;
+    return {
+      exactBonus: [5, 10, 20].includes(stored.exactBonus ?? -1)
+        ? stored.exactBonus!
+        : defaultOhHellRules.exactBonus,
+      scoreMissedTricks: stored.scoreMissedTricks !== false,
+      forbidExactBidTotal: stored.forbidExactBidTotal !== false,
+    };
+  } catch {
+    return { ...defaultOhHellRules };
+  }
+}
+
+export function loadCheatRules(): CheatRules {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(storageKeys.cheatRules) ?? "{}",
+    ) as Partial<CheatRules>;
+    return {
+      deckCount: stored.deckCount === 2 ? 2 : 1,
+      direction: stored.direction === "descending" ? "descending" : "ascending",
+      maxCardsPerTurn: [1, 4, 8].includes(stored.maxCardsPerTurn ?? 0)
+        ? stored.maxCardsPerTurn!
+        : defaultCheatRules.maxCardsPerTurn,
+    };
+  } catch {
+    return { ...defaultCheatRules };
   }
 }
 

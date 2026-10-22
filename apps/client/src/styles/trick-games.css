@@ -1,0 +1,125 @@
+.trick-game-board,
+.cheat-board {
+  display: grid;
+  gap: 1rem;
+}
+
+.trick-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.65rem;
+}
+
+.trick-player-grid article {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.trick-player-grid article.current {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.trick-player-grid h3,
+.trick-player-grid p,
+.trick-player-grid dl,
+.trick-player-grid dd {
+  margin: 0;
+}
+
+.trick-player-grid dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.trick-player-grid dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.team-score-row,
+.bid-controls,
+.revealed-cards,
+.trick-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.team-score-row {
+  justify-content: space-between;
+  margin-top: 0.85rem;
+}
+
+.trick-cards {
+  min-height: 8rem;
+  justify-content: center;
+}
+
+.trick-play {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+}
+
+.compact-card {
+  width: 3.25rem;
+  height: 4.55rem;
+  min-width: 3.25rem;
+  padding: 0.35rem;
+}
+
+.card-back-stack {
+  display: grid;
+  place-items: center;
+  min-height: 8rem;
+  font-size: clamp(3.5rem, 12vw, 7rem);
+}
+
+.card-back-stack strong {
+  font-size: 1rem;
+}
+
+.challenge-result {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 900px) {
+  .trick-game-board,
+  .cheat-board {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.55fr);
+  }
+
+  .trick-game-board > .status-card,
+  .cheat-board > .status-card,
+  .trick-game-board > .hand,
+  .cheat-board > .hand {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .bid-controls,
+  .bid-controls > *,
+  .cheat-board .button-row,
+  .cheat-board .button-row > * {
+    width: 100%;
+  }
+
+  .trick-player-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 380px) {
+  .trick-player-grid {
+    grid-template-columns: 1fr;
+  }
+}

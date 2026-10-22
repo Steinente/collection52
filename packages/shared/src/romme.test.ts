@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeGinHand,
   applyRommeAction,
+  createCanastaDeck,
   createGinDeck,
   createRommeDeck,
   createRommeGame,
+  defaultRommeRules,
   detectRommeMeld,
   ginRoundScore,
+  isPotentialCanastaMeld,
+  isValidCanastaMeld,
   isPotentialRommeMeld,
   isValidRommeMeld,
   rommeMeldPoints,
@@ -29,6 +33,146 @@ const joker = (index = 1): RommeCard => ({
   suit: "joker",
   rank: "joker",
 });
+
+describe("Canasta engine", () => {
+  const canastaPeople = [
+    { id: "a", name: "Anna" },
+    { id: "b", name: "Ben" },
+    { id: "c", name: "Cara" },
+    { id: "d", name: "Dino" },
+  ];
+  const canastaRules = {
+    ...defaultRommeRules,
+    variant: "canasta" as const,
+  };
+
+  it("uses 108 unique cards, fixed partnerships, and eleven-card hands", () => {
+    expect(createCanastaDeck()).toHaveLength(108);
+    expect(new Set(createCanastaDeck().map((item) => item.id)).size).toBe(108);
+    const game = createRommeGame(
+      "canasta",
+      canastaPeople,
+      zero,
+      canastaRules,
+    );
+    expect(game.players.map((player) => player.teamId)).toEqual([
+      "team-1",
+      "team-2",
+      "team-1",
+      "team-2",
+    ]);
+    expect(game.players.every((player) => player.hand.length === 11)).toBe(
+      true,
+    );
+    expect(() =>
+      createRommeGame("canasta", people, zero, canastaRules),
+    ).toThrow("canasta_requires_four_players");
+  });
+
+  it("validates same-rank melds with Canasta wild-card limits", () => {
+    expect(
+      isValidCanastaMeld([
+        card("clubs", "8"),
+        card("hearts", "8"),
+        joker(),
+      ]),
+    ).toBe(true);
+    expect(
+      isValidCanastaMeld([
+        card("clubs", "8"),
+        card("hearts", "8"),
+        joker(),
+        joker(2),
+        joker(3),
+        card("spades", "2"),
+      ]),
+    ).toBe(false);
+    expect(
+      isPotentialCanastaMeld([
+        card("clubs", "queen"),
+        card("hearts", "queen"),
+      ]),
+    ).toBe(true);
+    expect(
+      isPotentialCanastaMeld([
+        card("clubs", "queen"),
+        card("hearts", "king"),
+      ]),
+    ).toBe(false);
+  });
+
+  it("takes a frozen discard pile only with a natural pair", () => {
+    const game = createRommeGame(
+      "canasta",
+      canastaPeople,
+      zero,
+      canastaRules,
+    );
+    const player = game.players.find(
+      (candidate) => candidate.id === game.currentPlayerId,
+    )!;
+    player.hand = [
+      card("clubs", "8"),
+      card("hearts", "8"),
+      card("clubs", "4"),
+    ];
+    game.discard = [card("diamonds", "5"), card("spades", "8")];
+    game.canastaDiscardFrozen = true;
+
+    const next = applyRommeAction(
+      game,
+      player.id,
+      { type: "romme:draw", source: "discard" },
+      zero,
+    );
+    expect(next.discard).toHaveLength(0);
+    expect(next.players.find((item) => item.id === player.id)?.hand).toHaveLength(
+      5,
+    );
+    expect(next.drawnDiscardId).toBe("spades-8-1");
+  });
+
+  it("opens melds for both partners using the score-based minimum", () => {
+    const game = createRommeGame(
+      "canasta",
+      canastaPeople,
+      zero,
+      canastaRules,
+    );
+    const player = game.players.find(
+      (candidate) => candidate.id === game.currentPlayerId,
+    )!;
+    player.hand = [
+      card("clubs", "ace"),
+      card("hearts", "ace"),
+      card("spades", "ace"),
+      card("clubs", "4"),
+    ];
+    game.hasDrawn = true;
+    const next = applyRommeAction(
+      game,
+      player.id,
+      {
+        type: "romme:meld",
+        groups: [
+          {
+            cardIds: ["clubs-ace-1", "hearts-ace-1", "spades-ace-1"],
+          },
+        ],
+      },
+      zero,
+    );
+    expect(
+      next.players
+        .filter((candidate) => candidate.teamId === player.teamId)
+        .every((candidate) => candidate.opened),
+    ).toBe(true);
+    expect(next.melds[0]).toMatchObject({
+      ownerId: player.teamId,
+      points: 60,
+    });
+  });
+});
 const state = (hand: RommeCard[]): RommeState => ({
   id: "game",
   players: [
@@ -50,6 +194,8 @@ const state = (hand: RommeCard[]): RommeState => ({
     openingPoints: 40,
     requireDiscardUse: false,
     ginTargetScore: 100,
+    canastaTargetScore: 5000,
+    canastaRequireCanastaToGoOut: true,
   },
   phase: "playing",
   version: 1,
@@ -380,6 +526,8 @@ describe("Gin-Rommé engine", () => {
     openingPoints: 40,
     requireDiscardUse: false,
     ginTargetScore: 100,
+    canastaTargetScore: 5000,
+    canastaRequireCanastaToGoOut: true,
   } as const;
 
   it("calculates knock, gin, and undercut scores explicitly", () => {

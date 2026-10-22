@@ -565,6 +565,8 @@ describe("LobbyManager", () => {
           openingPoints: 40,
           requireDiscardUse: false,
           ginTargetScore: 150,
+          canastaTargetScore: 5000,
+          canastaRequireCanastaToGoOut: true,
         },
       },
       "s1",
@@ -586,6 +588,103 @@ describe("LobbyManager", () => {
       made.lobby.game?.players.map((player) => player.hand.length),
     ).toEqual([10, 10]);
     manager.close(made.lobby, "test_finished");
+    manager.stop();
+  });
+  it("creates Canasta as a four-player Rommé-family lobby", async () => {
+    const manager = new LobbyManager(hooks());
+    const made = await manager.create(
+      "Anna",
+      {
+        gameId: "romme",
+        maxPlayers: 6,
+        deckSize: 52,
+        visibility: "public",
+        rommeRules: {
+          variant: "canasta",
+          openingPoints: 40,
+          requireDiscardUse: false,
+          ginTargetScore: 100,
+          canastaTargetScore: 7500,
+          canastaRequireCanastaToGoOut: true,
+        },
+      },
+      "s1",
+    );
+    await manager.join(made.lobby, "Ben", undefined, "s2");
+    await manager.join(made.lobby, "Cara", undefined, "s3");
+    await manager.join(made.lobby, "Dino", undefined, "s4");
+
+    expect(made.lobby.maxPlayers).toBe(4);
+    expect(manager.summary(made.lobby).rommeVariant).toBe("canasta");
+    manager.start(made.lobby, made.player.id);
+    expect(made.lobby.game).toMatchObject({
+      rules: { variant: "canasta", canastaTargetScore: 7500 },
+      players: expect.arrayContaining([
+        expect.objectContaining({ teamId: "team-1" }),
+        expect.objectContaining({ teamId: "team-2" }),
+      ]),
+    });
+    manager.close(made.lobby, "test_finished");
+    manager.stop();
+  });
+  it("enforces player counts and keeps rules for the new games", async () => {
+    const manager = new LobbyManager(hooks());
+    const spades = await manager.create(
+      "Anna",
+      {
+        gameId: "spades",
+        maxPlayers: 9,
+        deckSize: 52,
+        visibility: "public",
+        spadesRules: { targetScore: 250, nilBonus: 50, bagPenalty: false },
+      },
+      "s1",
+    );
+    expect(spades.lobby.maxPlayers).toBe(4);
+    await manager.join(spades.lobby, "Ben", undefined, "s2");
+    await manager.join(spades.lobby, "Cara", undefined, "s3");
+    expect(() => manager.start(spades.lobby, spades.player.id)).toThrow(
+      "spades_requires_four_players",
+    );
+    await manager.join(spades.lobby, "Dino", undefined, "s4");
+    manager.start(spades.lobby, spades.player.id);
+    expect(spades.lobby.game).toMatchObject({ rules: { targetScore: 250 } });
+    manager.close(spades.lobby, "test_finished");
+
+    const ohHell = await manager.create(
+      "Anna",
+      { gameId: "oh-hell", maxPlayers: 10, deckSize: 52, visibility: "public" },
+      "o1",
+    );
+    expect(ohHell.lobby.maxPlayers).toBe(7);
+    await manager.join(ohHell.lobby, "Ben", undefined, "o2");
+    expect(() => manager.start(ohHell.lobby, ohHell.player.id)).toThrow(
+      "oh_hell_requires_three_to_seven_players",
+    );
+    manager.close(ohHell.lobby, "test_finished");
+
+    const cheat = await manager.create(
+      "Anna",
+      {
+        gameId: "cheat",
+        maxPlayers: 10,
+        deckSize: 52,
+        visibility: "public",
+        cheatRules: {
+          deckCount: 2,
+          direction: "descending",
+          maxCardsPerTurn: 8,
+        },
+      },
+      "c1",
+    );
+    await manager.join(cheat.lobby, "Ben", undefined, "c2");
+    manager.start(cheat.lobby, cheat.player.id);
+    expect(cheat.lobby.game).toMatchObject({
+      currentRank: "ace",
+      rules: { deckCount: 2, direction: "descending" },
+    });
+    manager.close(cheat.lobby, "test_finished");
     manager.stop();
   });
 });

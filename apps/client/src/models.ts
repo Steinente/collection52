@@ -4,6 +4,7 @@ import type {
   DurakPhase,
   GameId,
   GinRoundResult,
+  CanastaRoundResult,
   KnackPhase,
   KnackRoundResult,
   MauMauPhase,
@@ -12,6 +13,12 @@ import type {
   RommeRules,
   Suit,
   TablePair,
+  SpadesRules,
+  SpadesRoundResult,
+  OhHellRules,
+  OhHellRoundResult,
+  CheatRules,
+  Rank,
 } from "@collection52/shared";
 
 export type Ack = AckResult;
@@ -101,6 +108,7 @@ export type RommeGameView = {
     handCount?: number;
     connected: boolean;
     opened: boolean;
+    teamId?: string;
   }>;
   discard: RommeCard[];
   discardCount: number;
@@ -115,19 +123,109 @@ export type RommeGameView = {
   currentPlayerId: string;
   hasDrawn: boolean;
   rules: RommeRules;
-  result?: { winnerId: string; handPoints: Record<string, number> };
+  result?: {
+    winnerId: string;
+    winnerTeamId?: string;
+    handPoints: Record<string, number>;
+  };
   roundNumber?: number;
   dealerId?: string;
   scores?: Record<string, number>;
   ginOpeningPasses?: number;
   roundResult?: GinRoundResult;
+  canastaRedThrees?: Record<string, RommeCard[]>;
+  canastaDiscardFrozen?: boolean;
+  canastaRoundResult?: CanastaRoundResult;
+};
+
+export type SpadesGameView = {
+  id: string;
+  version: number;
+  phase: "bidding" | "playing" | "round-ended" | "finished";
+  players: Array<{
+    id: string;
+    name: string;
+    hand: Card[];
+    handCount?: number;
+    connected: boolean;
+    teamId: "team-1" | "team-2";
+    bid?: number;
+    tricks: number;
+  }>;
+  dealerId: string;
+  currentPlayerId: string;
+  trick: Array<{ playerId: string; card: Card }>;
+  spadesBroken: boolean;
+  scores: Record<"team-1" | "team-2", number>;
+  bags: Record<"team-1" | "team-2", number>;
+  roundNumber: number;
+  rules: SpadesRules;
+  roundResult?: SpadesRoundResult;
+  result?: { winnerTeamId: "team-1" | "team-2" };
+};
+
+export type OhHellGameView = {
+  id: string;
+  version: number;
+  phase: "bidding" | "playing" | "round-ended" | "finished";
+  players: Array<{
+    id: string;
+    name: string;
+    hand: Card[];
+    handCount?: number;
+    connected: boolean;
+    bid?: number;
+    tricks: number;
+    score: number;
+  }>;
+  dealerId: string;
+  currentPlayerId: string;
+  trick: Array<{ playerId: string; card: Card }>;
+  trumpSuit: Suit;
+  trumpCard: Card;
+  roundNumber: number;
+  handSize: number;
+  schedule: number[];
+  rules: OhHellRules;
+  roundResult?: OhHellRoundResult;
+  result?: { winnerIds: string[] };
+};
+
+export type CheatGameView = {
+  id: string;
+  version: number;
+  phase: "playing" | "finished";
+  players: Array<{
+    id: string;
+    name: string;
+    hand: Card[];
+    handCount?: number;
+    connected: boolean;
+  }>;
+  currentPlayerId: string;
+  currentRank: Rank;
+  pileCount: number;
+  lastPlay?: { playerId: string; claimedRank: Rank; count: number };
+  pendingWinnerId?: string;
+  lastChallenge?: {
+    challengerId: string;
+    challengedId: string;
+    truthful: boolean;
+    loserId: string;
+    cards: Card[];
+  };
+  rules: CheatRules;
+  result?: { winnerId: string };
 };
 
 export type AnyGameView =
   | DurakGameView
   | SchwimmenGameView
   | MauMauGameView
-  | RommeGameView;
+  | RommeGameView
+  | SpadesGameView
+  | OhHellGameView
+  | CheatGameView;
 export type ProtocolEntry = {
   id: string;
   timestamp: number;

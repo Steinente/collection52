@@ -9,6 +9,9 @@ import {
   isValidUsername,
   loadMauMauRules,
   loadRommeRules,
+  loadSpadesRules,
+  loadOhHellRules,
+  loadCheatRules,
   storageKeys,
   usernamePattern,
 } from "../client-config";
@@ -258,7 +261,9 @@ export function Home({
                     ? t(
                         retainedLobby.rommeVariant === "gin"
                           ? "rommeVariantGin"
-                          : "rommeVariantClassic",
+                          : retainedLobby.rommeVariant === "canasta"
+                            ? "rommeVariantCanasta"
+                            : "rommeVariantClassic",
                       )
                     : t(retainedLobby.gameId),
                 code: retainedLobby.code,
@@ -305,9 +310,7 @@ export function Home({
             <ResponsiveSelect
               label={t("game")}
               value={selectedGame}
-              onChange={(value) =>
-                setSelectedGame(value as GameSelectionId)
-              }
+              onChange={(value) => setSelectedGame(value as GameSelectionId)}
               options={games.map((game) => ({
                 value: game.id,
                 label: game.name,
@@ -386,11 +389,18 @@ export function Home({
                 accentColor: playerAccentColor,
                 settings: {
                   gameId,
-                  maxPlayers: rommeVariant === "gin" ? 2 : 4,
+                  maxPlayers:
+                    rommeVariant === "gin"
+                      ? 2
+                      : gameId === "spades"
+                        ? 4
+                        : gameId === "oh-hell" || gameId === "cheat"
+                          ? 6
+                          : 4,
                   deckSize:
                     gameId === "durak"
                       ? 36
-                      : gameId === "romme"
+                      : ["romme", "spades", "oh-hell", "cheat"].includes(gameId)
                         ? 52
                         : 32,
                   visibility: createVisibility,
@@ -404,6 +414,15 @@ export function Home({
                           variant: rommeVariant ?? "classic",
                         },
                       }
+                    : {}),
+                  ...(gameId === "spades"
+                    ? { spadesRules: loadSpadesRules() }
+                    : {}),
+                  ...(gameId === "oh-hell"
+                    ? { ohHellRules: loadOhHellRules() }
+                    : {}),
+                  ...(gameId === "cheat"
+                    ? { cheatRules: loadCheatRules() }
                     : {}),
                   ...(createPasswordEnabled
                     ? { password: createPassword }
@@ -487,7 +506,9 @@ export function Home({
                         ? t(
                             l.rommeVariant === "gin"
                               ? "rommeVariantGin"
-                              : "rommeVariantClassic",
+                              : l.rommeVariant === "canasta"
+                                ? "rommeVariantCanasta"
+                                : "rommeVariantClassic",
                           )
                         : t(l.gameId)}
                     </strong>
